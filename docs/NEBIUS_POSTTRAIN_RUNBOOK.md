@@ -22,12 +22,14 @@ Before restarting any paid VM, require green tests and a completed local validat
 cd near_agi
 
 PYTHON_BIN="${PYTHON_BIN:-python}" \
-  scripts/build_dataset_v2.sh
+  scripts/build_dataset_v2bis.sh
 
-python -m json.tool configs/train/v002.dataset-manifest.json
+python -m json.tool configs/train/v002bis.dataset-manifest.json
 ```
 
-The v2 raw build contains 54,000 training, 9,000 validation, 9,000 calibration and 18,000 unseen-template development question sequences. Action identifiers are opaque, candidate order is shuffled, and training and development path vocabularies are disjoint. Do not rebuild it after training begins.
+Dataset generation requires `OPENROUTER_API_KEY` and uses `openai/gpt-5.6-sol`. GPT generates five contrastive candidate actions at each reachable anchor state. Every candidate is executed on an independent simulator clone; GPT never supplies a label. The planned build uses 200/30/30/60 scenario groups and five anchors per group, approximately 1,600 planner calls and 48,000 labeled question sequences when every response contains five unique candidates. The exact committed manifest is authoritative.
+
+Current and historical action identifiers are excluded from model input but retained in audit records. Scenario groups cannot cross splits, and development uses separate template families. Generation fails if tool or outcome diversity gates are not met. Do not freeze or stage the corpus until the manifest, usage, candidate cache and manual trajectory audit pass. Do not rebuild it after training begins.
 
 ## 2. Create resources manually
 
@@ -82,7 +84,7 @@ screen -r laya
 
 The attached screen displays the original pipeline output. It labels preflight, preprocessing, training, calibration, evaluation and promotion-gate phases. Training progress is formatted as concise human-readable lines with step, epoch, loss, cross-entropy, throughput, peak VRAM and elapsed time. Detach without stopping the job with `Ctrl+A`, then `D`, and reattach later with `screen -r laya`.
 
-The complete original terminal stream is also recorded under `/data/laya-posttrain/logs/smoke-*.log`. The structured `/data/laya-posttrain/checkpoints/laya-dynamics-v002/train-log.jsonl` remains the audit source. After the session finishes, require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration.
+The complete original terminal stream is also recorded under `/data/laya-posttrain/logs/smoke-*.log`. The structured `/data/laya-posttrain/checkpoints/laya-dynamics-v002bis/train-log.jsonl` remains the audit source. After the session finishes, require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration. Never copy or resume `/data/laya-posttrain/checkpoints/laya-dynamics-v002/resume.pt` into this directory: its dataset hash and model representation belong to the interrupted v2 run.
 
 ## 5. Production run
 
@@ -98,7 +100,7 @@ screen -r laya
 
 The pipeline preprocesses once, trains four epochs, calibrates on the dedicated split, verifies the offline promotion gate, then runs checkpointed four-arm smoke and challenge gates. Only two passes unlock the single `final-v001` campaign. It writes `SHA256SUMS` and powers off after success, gate failure, interruption or error.
 
-Each benchmark writes `reports/<campaign>/checkpoint.json` atomically after every completed episode. Re-running the full screen command resumes the fixed v2 campaign, reuses its campaign-scoped candidate cache, skips completed episodes and restarts only an interrupted episode. The OpenRouter key remains in the process environment and is never written to a repository file or checkpoint.
+Each benchmark writes `reports/<campaign>/checkpoint.json` atomically after every completed episode. Re-running the full screen command resumes the fixed v2bis campaign, reuses its campaign-scoped candidate cache, skips completed episodes and restarts only an interrupted episode. The OpenRouter key remains in the process environment and is never written to a repository file or checkpoint.
 
 After preemption, attach the same disk to a compatible H100 VM, mount it at `/data`, and rerun the identical command. Dataset or seed mismatches fail closed.
 

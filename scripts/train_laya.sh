@@ -8,9 +8,9 @@ fi
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 python_bin=${PYTHON_BIN:-"$root/.venv/bin/python"}
-data_root=${POSTTRAIN_DATA_ROOT:-"$root/data/posttrain/v002"}
+data_root=${POSTTRAIN_DATA_ROOT:-"$root/data/posttrain/v002bis"}
 base=${LAYA_BASE:-/data/laya-posttrain/base-english}
-output=${LAYA_OUTPUT:-/data/laya-posttrain/checkpoints/laya-dynamics-v002}
+output=${LAYA_OUTPUT:-/data/laya-posttrain/checkpoints/laya-dynamics-v002bis}
 
 exec "$python_bin" -m laya_dynamics_agent.posttrain train \
   --items "$data_root/tokenized/train.pt" \

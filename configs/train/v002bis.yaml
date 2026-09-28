@@ -1,0 +1,20 @@
+version: v002bis
+status: pilot_validation
+dataset:
+  generator: laya_dynamics_agent.training_data_v2bis
+  raw_manifest: configs/train/v002bis.dataset-manifest.json
+  seed: 20260930
+  candidate_model: openai/gpt-5.6-sol
+  candidate_prompt: prompts/planner_v2bis_collection.md
+  label_source: executed_counterfactual
+  excludes_from_model_input:
+    - candidate_action.action_id
+training:
+  base_checkpoint: base-english
+  epochs: 4
+  micro_batch: 4
+  gradient_accumulation: 8
+  checkpoint_seconds: 600
+evaluation:
+  final_suite: final-v001
+  require_runtime_transfer_gate: true

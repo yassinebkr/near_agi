@@ -6,10 +6,10 @@ workspace=${NEBIUS_WORKSPACE:-/data/laya-posttrain}
 python_bin="$workspace/venv/bin/python"
 lda="$workspace/venv/bin/lda"
 base=${LAYA_BASE:-"$workspace/base-english"}
-fine=${LAYA_OUTPUT:-"$workspace/checkpoints/laya-dynamics-v002"}
+fine=${LAYA_OUTPUT:-"$workspace/checkpoints/laya-dynamics-v002bis"}
 provider=${BENCHMARK_PROVIDER:-openrouter}
 model=${OPENROUTER_MODEL:-openai/gpt-5.6-sol}
-state_dir="$workspace/runtime-eval/v002"
+state_dir="$workspace/runtime-eval/v002bis"
 mkdir -p "$state_dir"
 
 test -n "${OPENROUTER_API_KEY:-}" || {
@@ -26,7 +26,7 @@ phase() {
 run_suite() {
   suite=$1
   seeds=$2
-  campaign="benchmark-v002-$suite"
+  campaign="benchmark-v002bis-$suite"
   report="$root/reports/$campaign/metrics.json"
   gate="$state_dir/$suite-gate.json"
   resume_arg=

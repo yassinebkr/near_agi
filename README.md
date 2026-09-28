@@ -83,11 +83,13 @@ uv run lda benchmark \
   --model openai/gpt-5.6-sol \
   --seeds 0,1,2,3,4 \
   --base-laya-checkpoint /path/to/base-english \
-  --finetuned-laya-checkpoint /path/to/laya-dynamics-v002 \
+  --finetuned-laya-checkpoint /path/to/laya-dynamics-v002bis \
   --fresh-candidate-cache
 ```
 
 Run a deterministic smoke with both checkpoints before this single-use final campaign.
+
+The current post-training candidate is `v2bis`. GPT-5.6 Sol generates the candidate sets, every candidate is executed counterfactually on an independent simulator clone, and labels come only from observed transitions. Current and historical action identifiers are excluded from model input but retained outside it for audit. The interrupted v2 checkpoint is historical evidence and must not be resumed as v2bis.
 
 A clean local CUDA/OpenRouter challenge run is:
 

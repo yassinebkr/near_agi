@@ -12,10 +12,17 @@ PROPERTIES = ("success", "goal_progress", "information_gain", "risk", "reversibl
 
 
 def compact_state(state: AgentState, action: CandidateAction) -> dict[str, Any]:
+    action_payload = action.model_dump()
+    action_payload.pop("action_id", None)
+    history = []
+    for record in state.history[-3:]:
+        payload = record.model_dump()
+        payload.pop("action_id", None)
+        history.append(payload)
     return {
         "goal": state.goal, "page": {"title": state.page_title, "path": state.path, "text": state.page_text[:1500]},
         "known_facts": [b.model_dump() for b in state.beliefs], "unknowns": state.unknowns,
-        "recent_history": [h.model_dump() for h in state.history[-3:]], "candidate_action": action.model_dump(),
+        "recent_history": history, "candidate_action": action_payload,
     }
 
 
@@ -94,4 +101,3 @@ class HeuristicPredictor:
                 needs_more_observation=.05 if primary else (.1 if answer else .8), provider="heuristic-control", calibrated=False,
             )
         return out
-

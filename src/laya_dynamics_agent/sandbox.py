@@ -66,11 +66,11 @@ SUITES = {
     "final": tuple(FINAL_TASKS),
 }
 
-def answer_matches(task_id: str, value: str) -> bool:
-    """Match the requested fact inside a natural-language answer without fuzzy guessing."""
+def _answer_matches_expected(expected_value: str, value: str) -> bool:
+    """Match an expected fact inside a natural-language answer without fuzzy guessing."""
     normalized = unicodedata.normalize("NFKD", value).casefold().replace("°", "").replace("%", " percent ")
     normalized = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
-    expected = unicodedata.normalize("NFKD", str(TASKS[task_id]["answer"])).casefold().replace("°", "")
+    expected = unicodedata.normalize("NFKD", str(expected_value)).casefold().replace("°", "")
     expected_tokens = re.findall(r"[a-z0-9]+", expected)
     aliases = {
         "v": r"(?:v|volt|volts)", "years": r"(?:year|years)", "c": r"(?:c|celsius)",
@@ -83,26 +83,42 @@ def answer_matches(task_id: str, value: str) -> bool:
     return re.search(pattern, normalized) is not None
 
 
+def answer_matches(task_id: str, value: str) -> bool:
+    return _answer_matches_expected(str(TASKS[task_id]["answer"]), value)
+
+
 class SandboxWebEnvironment:
     """Deterministic, side-effect-free web abstraction used as ground truth."""
 
     allowlist = {"navigate", "answer", "observe"}
 
-    def __init__(self) -> None:
+    def __init__(self, *, tasks: dict[str, dict[str, Any]] | None = None,
+                 pages: dict[str, Page] | None = None) -> None:
         self._state: AgentState | None = None
         self._task: dict[str, Any] | None = None
+        self._tasks = TASKS if tasks is None else tasks
+        self._pages = PAGES if pages is None else pages
+
+    def clone(self) -> "SandboxWebEnvironment":
+        """Return an independent environment at the identical observable state."""
+        return deepcopy(self)
+
+    def snapshot(self) -> AgentState:
+        if self._state is None:
+            raise RuntimeError("reset must be called first")
+        return self._state.model_copy(deep=True)
 
     def reset(self, task_id: str = "voltage-001") -> AgentState:
-        if task_id not in TASKS:
+        if task_id not in self._tasks:
             raise KeyError(f"unknown sandbox task: {task_id}")
-        task = TASKS[task_id]
+        task = self._tasks[task_id]
         self._task = task
         self._state = AgentState(
             task_id=task_id,
             template_id=task["template_id"],
             step_index=0,
             goal=task["goal"],
-            page_title=PAGES["/search"].title,
+            page_title=self._pages["/search"].title,
             path="/search",
             page_text=task["search_text"],
             observations=[], beliefs=[], unknowns=[task["unknown"]], history=[],
@@ -122,8 +138,8 @@ class SandboxWebEnvironment:
             path = str(action.args.get("path", ""))
             if self._task and path == self._task["primary_path"] and "primary_text" in self._task:
                 page = Page(self._task["primary_title"], self._task["primary_text"], "primary")
-            elif path in PAGES:
-                page = PAGES[path]
+            elif path in self._pages:
+                page = self._pages[path]
             else:
                 page = None
                 error = "unknown_path"
@@ -140,7 +156,7 @@ class SandboxWebEnvironment:
             value = str(action.args.get("value", "")).strip().lower()
             after.terminal = True
             expected = str(self._task["answer"]).strip().lower() if self._task else ""
-            after.success = answer_matches(before.task_id, value) and any(b.value.lower() == expected and b.confidence == 1 for b in after.beliefs)
+            after.success = _answer_matches_expected(expected, value) and any(b.value.lower() == expected and b.confidence == 1 for b in after.beliefs)
         elif action.tool == "observe":
             pass
         after.step_index += 1
@@ -163,4 +179,3 @@ class SandboxWebEnvironment:
             risk=risk, reversible=1.0 - risk, needs_more_observation=float(bool(after.unknowns) and not after.terminal),
             provenance={key: "deterministic" for key in ("success", "goal_progress", "information_gain", "risk", "reversible", "needs_more_observation")},
         )
-

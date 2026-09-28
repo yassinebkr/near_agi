@@ -18,6 +18,14 @@ The campaign recorded seven fresh candidate generations and four cache replays. 
 
 The deterministic fixture makes provider generation nearly instantaneous, while synchronous SQLite/JSONL persistence appears as roughly 129–144 ms mean framework overhead per episode. This is expected and exposes the measurement boundary rather than a timing defect. The run also contains one mixed Laya path caused by a divergent state, which validates simultaneous fresh and replay accounting. No speedup conclusion is drawn.
 
+## laya-dynamics-v002 · interrupted corpus audit
+
+Date: 2026-09-28. The paid v2 run was stopped during epoch one before export or evaluation. Its log had reached step 660, with frequent zero-cross-entropy batches. An audit then established that opaque current action identifiers still reached Laya through `candidate_action`, while earlier identifiers reached it through `recent_history`. Fixed phase and candidate grammar also remained exploitable. Continuing the run could not answer the intended transfer question, so the interruption was a methodological decision rather than a training-system failure.
+
+The resumable v2 checkpoint and original logs remain on the persistent Nebius system disk as historical evidence. They must not be renamed, copied into the v2bis output directory or used for promotion. No v2 quality result is inferred because training did not complete.
+
+The replacement v2bis pilot uses GPT-5.6 Sol candidate sets and independently cloned simulator execution for every candidate. Its accepted 20-call pilot produced 100 executed candidates and 600 labeled questions, represented all three tools, and included positive success, progress, information-gain and risk transitions in every split. Recorded provider usage was 20,194 tokens at $0.120364. This validates collection mechanics only; it is not a model-quality result.
+
 ## laya-dynamics-v001 · Nebius post-training
 
 Date: 2026-09-28. Hardware: one NVIDIA H100 80 GB. Laya revision: `9d955671415fc19f069b9cc998928075c1f255ec`. The three-step smoke was resumed into the frozen four-epoch recipe. Training completed 7,352 optimizer updates and 41,809,925 tokens in 7,722 seconds, with 8.74 GiB peak reserved VRAM. Epoch-average objectives were `0.0110`, `0.0426`, `-0.0107` and `-0.0108`. The signed RLCD objective is not expected to decrease monotonically. Cross-entropy was exactly zero at 77.9% of logged points, indicating that most sampled batches became trivial; this makes independent task evaluation essential.

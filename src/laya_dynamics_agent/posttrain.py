@@ -52,7 +52,7 @@ def _format_train_event(row: dict[str, Any]) -> str:
 def verify_dataset(dataset_dir: Path) -> dict[str, Any]:
     manifest_path = dataset_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") not in {"1.0", "2.0"}:
+    if manifest.get("schema_version") not in {"1.0", "2.0", "2.1"}:
         raise RuntimeError("unsupported dataset manifest schema")
     for split, metadata in manifest["splits"].items():
         path = dataset_dir / metadata["path"]

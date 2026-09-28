@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .models import AgentState, Belief, CandidateAction, Observation, ObservedProperties
-from .predictors import LayaPredictor, PROPERTIES, compact_state
+from .predictors import LayaPredictor, PROPERTIES
 
 SCHEMA_VERSION = "2.0"
 LABELER_VERSION = "synthetic-counterfactual-v002"
@@ -37,6 +37,18 @@ def _canonical(value: Any) -> str:
 
 def _hash(value: Any) -> str:
     return hashlib.sha256(_canonical(value).encode()).hexdigest()
+
+
+def _legacy_compact_state(state: AgentState, action: CandidateAction) -> dict[str, Any]:
+    """Preserve the frozen v002 byte representation for reproducibility."""
+    return {
+        "goal": state.goal,
+        "page": {"title": state.page_title, "path": state.path, "text": state.page_text[:1500]},
+        "known_facts": [belief.model_dump() for belief in state.beliefs],
+        "unknowns": state.unknowns,
+        "recent_history": [item.model_dump() for item in state.history[-3:]],
+        "candidate_action": action.model_dump(),
+    }
 
 
 def _action_id(split: str, index: int, phase: str, role: str) -> str:
@@ -165,7 +177,7 @@ def iter_rows(split: str, count: int, seed: int) -> Iterable[dict[str, Any]]:
                 yield {"schema_version": SCHEMA_VERSION, "labeler_version": LABELER_VERSION,
                     "split": split, "task_id": task["task_id"], "template_id": task["template_id"],
                     "phase": phase, "state_hash": state.state_hash, "action_hash": _hash(action_payload),
-                    "state": compact_state(state, action), "questions": questions, "gold": _gold(observed),
+                    "state": _legacy_compact_state(state, action), "questions": questions, "gold": _gold(observed),
                     "agent_state": state.model_dump(mode="json"), "candidate_action": action_payload,
                     "observed": observed.model_dump(mode="json"), "provenance": LABELER_VERSION}
 

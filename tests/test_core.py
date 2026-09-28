@@ -1,12 +1,13 @@
 import asyncio
+import json
 from collections import Counter
 from pathlib import Path
 from laya_dynamics_agent.benchmark import _paired_comparisons, run_benchmark_suite
 from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
-from laya_dynamics_agent.models import CandidateAction
+from laya_dynamics_agent.models import ActionRecord, AgentState, CandidateAction
 from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_structured_action, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
-from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, resolve_laya_device
+from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, compact_state, resolve_laya_device
 from laya_dynamics_agent.runner_impl import run_episode
 from laya_dynamics_agent.sandbox import SUITES, SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
@@ -23,6 +24,9 @@ from laya_dynamics_agent.training_data_v2 import (
     DEFAULT_SPLIT_SIZES as V2_SPLIT_SIZES,
     build_dataset as build_dataset_v2,
     iter_rows as iter_rows_v2,
+)
+from laya_dynamics_agent.training_data_v2bis import (
+    build_dataset as build_dataset_v2bis,
 )
 
 def test_state_hash_is_stable():
@@ -317,6 +321,68 @@ def test_v2_dataset_is_deterministic_and_uses_opaque_actions(tmp_path: Path):
                    for row in train_rows + dev_rows)
 
 
+def test_compact_state_excludes_current_and_historical_action_ids():
+    state = AgentState(task_id="t", template_id="x", step_index=1, goal="inspect",
+        page_title="page", path="/page", page_text="text",
+        history=[ActionRecord(step=0, action_id="history-secret", tool="observe", args={},
+                              state_hash_after="hash")])
+    first = CandidateAction(action_id="current-secret", tool="navigate", args={"path": "/next"})
+    second = first.model_copy(update={"action_id": "different-secret"})
+    changed_history = [state.history[0].model_copy(update={"action_id": "different-history-secret"})]
+    compact = compact_state(state, first)
+    assert compact == compact_state(state.model_copy(update={"history": changed_history}), second)
+    assert "current-secret" not in json.dumps(compact)
+    assert "history-secret" not in json.dumps(compact)
+    assert compact["candidate_action"]["tool"] == "navigate"
+    assert compact["recent_history"][0]["tool"] == "observe"
+
+
+def test_v2bis_keeps_ids_for_audit_but_not_model_input(tmp_path: Path):
+    class CorpusPlanner:
+        model = "test-corpus-planner"
+        seed = 0
+        last_provenance = {"candidate_source": "fresh", "candidate_generation_ms": 1.0}
+        async def propose_actions(self, state, max_actions=5):
+            if state.path.startswith("/records/"):
+                best = CandidateAction(action_id=f"generated-{self.seed}-success", tool="answer",
+                    args={"value": state.page_text.rsplit(" is ", 1)[-1].rstrip(".")})
+            else:
+                paths = [part.rstrip(";.") for part in state.page_text.split()
+                         if part.startswith("/records/")]
+                best = CandidateAction(action_id=f"generated-{self.seed}-best", tool="navigate",
+                    args={"path": paths[0] if paths else "/forum"})
+            return [
+                best,
+                CandidateAction(action_id=f"generated-{self.seed}-observe", tool="observe", args={}),
+                CandidateAction(action_id=f"generated-{self.seed}-invalid", tool="navigate", args={"path": "/missing"}),
+                CandidateAction(action_id=f"generated-{self.seed}-answer", tool="answer", args={"value": "unknown"}),
+                CandidateAction(action_id=f"generated-{self.seed}-risk", tool="navigate", args={"path": "/danger"}),
+            ][:max_actions]
+    sizes = {split: 2 for split in V2_SPLIT_SIZES}
+    manifest = asyncio.run(build_dataset_v2bis(
+        tmp_path, CorpusPlanner(), split_sizes=sizes, max_actions=5))
+    assert manifest["schema_version"] == "2.1"
+    assert manifest["label_source"] == "executed_counterfactual"
+    assert manifest["model_input_excludes"] == ["candidate_action.action_id", "recent_history.action_id"]
+    rows = [json.loads(line) for line in (tmp_path / "train.jsonl").read_text().splitlines()]
+    assert rows
+    assert all("action_id" in row["candidate_action"] for row in rows)
+    assert all("action_id" not in row["state"]["candidate_action"] for row in rows)
+    assert all(row["label_source"] == "executed_counterfactual" for row in rows)
+    assert any(row["transition_error"] == "unknown_path" for row in rows)
+
+
+def test_sandbox_counterfactual_clones_are_isolated():
+    env = SandboxWebEnvironment()
+    before = env.reset("voltage-001")
+    safe = env.clone().step(CandidateAction(action_id="safe", tool="navigate", args={"path": "/manufacturer"}))
+    risky = env.clone().step(CandidateAction(action_id="risk", tool="navigate", args={"path": "/danger"}))
+    assert env.snapshot() == before
+    assert safe.before.state_hash == risky.before.state_hash == before.state_hash
+    assert safe.observed.information_gain == 1.0 and safe.observed.risk == 0.0
+    assert risky.observed.risk == 1.0 and risky.observed.reversible == 0.0
+
+
 def test_preprocessing_preserves_runtime_noul_labels():
     question = LayaPredictor.questions()["success"]
     compact = _question_for_laya(question)
@@ -592,13 +658,13 @@ def test_trajectory_store_can_restart_interrupted_run(tmp_path: Path):
 
 
 def test_tracked_files_do_not_expose_workstation_identifiers():
+    import ipaddress
+    import re
     import subprocess
     root = Path(__file__).resolve().parents[1]
     tracked = subprocess.run(["git", "ls-files", "-z"], cwd=root, check=True,
                              capture_output=True).stdout.split(b"\0")
-    local_user = b"kwe" + b"stog"
-    forbidden = (b"/home/" + local_user, b"/mnt/" + b"fast-ssd",
-                 b"nebius-" + b"pilot", b"89.169." + b"109.237", local_user + b"@")
+    forbidden = (str(Path.home()).encode(), b"/mnt/" + b"fast-ssd")
     leaks = []
     for raw_path in tracked:
         if not raw_path:
@@ -607,6 +673,14 @@ def test_tracked_files_do_not_expose_workstation_identifiers():
         if not path.is_file():
             continue
         content = path.read_bytes()
+        if path.suffix in {".md", ".yaml", ".yml", ".sh"}:
+            for candidate in re.findall(rb"(?<![0-9])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])", content):
+                try:
+                    address = ipaddress.ip_address(candidate.decode())
+                except ValueError:
+                    continue
+                if address.is_global and not address.is_reserved:
+                    leaks.append(f"{raw_path.decode()}: public IPv4 address")
         for token in forbidden:
             if token in content:
                 leaks.append(f"{raw_path.decode()}: {token.decode()}")

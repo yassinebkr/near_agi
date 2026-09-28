@@ -9,9 +9,9 @@ fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 workspace=${NEBIUS_WORKSPACE:-/data/laya-posttrain}
 python_bin="$workspace/venv/bin/python"
-dataset=${POSTTRAIN_DATA_ROOT:-"$workspace/data/v002"}
+dataset=${POSTTRAIN_DATA_ROOT:-"$workspace/data/v002bis"}
 base=${LAYA_BASE:-"$workspace/base-english"}
-output=${LAYA_OUTPUT:-"$workspace/checkpoints/laya-dynamics-v002"}
+output=${LAYA_OUTPUT:-"$workspace/checkpoints/laya-dynamics-v002bis"}
 
 phase() {
   printf '[pipeline %s] %s\n' "$(date -u +%H:%M:%S)" "$1"
