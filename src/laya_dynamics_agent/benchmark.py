@@ -109,7 +109,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                     except BaseException as exc:
                         failed = {"run_id": run_id, "campaign_id": campaign_id, "mode": mode, "task_id": task_id, "seed": seed, "steps": 0, "stop_reason": "error", "error": type(exc).__name__}
                         store.finish_run(run_id, "error", failed)
-                        progress(f"    ERROR | {type(exc).__name__}: {str(exc).splitlines()[0]}")
+                        progress(f"    FAILED | elapsed={time.perf_counter() - episode_started:.1f}s")
                         raise
                 if shutdown.event.is_set():
                     break

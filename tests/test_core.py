@@ -3,7 +3,7 @@ from pathlib import Path
 from laya_dynamics_agent.benchmark import run_benchmark_suite
 from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
 from laya_dynamics_agent.models import CandidateAction
-from laya_dynamics_agent.planners import _DIRECT_PROMPT, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
+from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_structured_action, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
 from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor
 from laya_dynamics_agent.runner_impl import run_episode
@@ -100,3 +100,10 @@ def test_terminal_summary_is_compact(capsys):
     output = capsys.readouterr().out
     assert "Benchmark complete" in output and "100.0%" in output
     assert "Raw metrics: reports/latest/metrics.json" in output
+
+
+def test_openrouter_schema_is_strict_and_normalizes_nullable_args():
+    assert _ACTION_SCHEMA["additionalProperties"] is False
+    assert _ACTION_SCHEMA["properties"]["args"]["additionalProperties"] is False
+    action = _parse_structured_action({"action_id": "a", "tool": "navigate", "args": {"path": "/forum", "value": None}, "rationale_short": None})
+    assert action.args == {"path": "/forum"}

@@ -115,14 +115,18 @@ class OpenRouterPlanner:
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "system", "content": self.prompt}, {"role": "user", "content": "STATE:\n" + state.canonical_json() + f"\nReturn JSON with at most {max_actions} actions."}],
-            response_format={"type": "json_object"},
+            response_format={"type": "json_schema", "json_schema": {"name": "candidate_actions", "strict": True, "schema": {
+                "type": "object", "properties": {"actions": {"type": "array", "minItems": 1, "maxItems": max_actions, "items": _ACTION_SCHEMA}},
+                "required": ["actions"], "additionalProperties": False,
+            }}},
+            extra_body={"provider": {"require_parameters": True}},
         )
         self.last_latency_ms = (time.perf_counter() - started) * 1000
         self.last_usage = response.usage.model_dump() if response.usage else {}
         content = response.choices[0].message.content
         if not content:
             raise RuntimeError("OpenRouter returned an empty planner response")
-        actions = [CandidateAction.model_validate(item) for item in json.loads(content)["actions"]]
+        actions = [_parse_structured_action(item) for item in json.loads(content)["actions"]]
         if not 1 <= len(actions) <= max_actions:
             raise ValueError(f"OpenRouter returned {len(actions)} actions; expected 1..{max_actions}")
         return actions
@@ -142,14 +146,30 @@ class DeterministicDirectPlanner:
         return [CandidateAction(action_id="direct-answer", tool="answer", args={"value": answer}, rationale_short="Answer from gathered evidence")]
 
 
-_DIRECT_SCHEMA = {
+_ACTION_SCHEMA = {
     "type": "object",
-    "properties": {"action": {"type": "object", "properties": {
-        "action_id": {"type": "string"}, "tool": {"type": "string", "enum": ["navigate", "answer", "observe"]},
-        "args": {"type": "object", "additionalProperties": True}, "rationale_short": {"type": ["string", "null"]}},
-        "required": ["action_id", "tool", "args", "rationale_short"], "additionalProperties": False}},
-    "required": ["action"], "additionalProperties": False,
+    "properties": {
+        "action_id": {"type": "string"},
+        "tool": {"type": "string", "enum": ["navigate", "answer", "observe"]},
+        "args": {
+            "type": "object",
+            "properties": {"path": {"type": ["string", "null"]}, "value": {"type": ["string", "null"]}},
+            "required": ["path", "value"],
+            "additionalProperties": False,
+        },
+        "rationale_short": {"type": ["string", "null"]},
+    },
+    "required": ["action_id", "tool", "args", "rationale_short"],
+    "additionalProperties": False,
 }
+_DIRECT_SCHEMA = {"type": "object", "properties": {"action": _ACTION_SCHEMA}, "required": ["action"], "additionalProperties": False}
+
+
+def _parse_structured_action(item: dict) -> CandidateAction:
+    normalized = dict(item)
+    normalized["args"] = {key: value for key, value in item.get("args", {}).items() if value is not None}
+    return CandidateAction.model_validate(normalized)
+
 _DIRECT_PROMPT = "Choose exactly one next action for the controlled research sandbox. Return one JSON object with an action field. Prefer primary evidence before answering. Use only tools and paths present in the state."
 
 
@@ -166,7 +186,7 @@ class OpenAIDirectPlanner:
         response = await self.client.responses.create(model=self.model, input=_DIRECT_PROMPT + "\nSTATE:\n" + state.canonical_json(), text={"format": {"type": "json_schema", "name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}})
         self.last_latency_ms = (time.perf_counter() - started) * 1000
         self.last_usage = response.usage.model_dump() if response.usage else {}
-        return [CandidateAction.model_validate(json.loads(response.output_text)["action"])]
+        return [_parse_structured_action(json.loads(response.output_text)["action"])]
 
 
 class OpenRouterDirectPlanner:
@@ -185,10 +205,10 @@ class OpenRouterDirectPlanner:
 
     async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
         started = time.perf_counter()
-        response = await self.client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_object"})
+        response = await self.client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_schema", "json_schema": {"name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}}, extra_body={"provider": {"require_parameters": True}})
         self.last_latency_ms = (time.perf_counter() - started) * 1000
         self.last_usage = response.usage.model_dump() if response.usage else {}
         content = response.choices[0].message.content
         if not content:
             raise RuntimeError("OpenRouter returned an empty direct-action response")
-        return [CandidateAction.model_validate(json.loads(content)["action"])]
+        return [_parse_structured_action(json.loads(content)["action"])]

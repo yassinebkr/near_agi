@@ -165,6 +165,11 @@ def _nested_provider_message(value: Any) -> str | None:
 
 def concise_error(exc: Exception) -> str:
     message = _nested_provider_message(getattr(exc, "body", None))
+    if not message and hasattr(exc, "errors"):
+        errors = exc.errors()
+        if errors:
+            location = ".".join(str(part) for part in errors[0].get("loc", ()))
+            message = f"{location}: {errors[0].get('msg', 'invalid value')}"
     if not message:
         message = str(exc).splitlines()[0]
     return f"{type(exc).__name__}: {message}"
