@@ -8,7 +8,7 @@ fi
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 remote=$1
-destination=${LAYA_EVACUATE_TO:-/mnt/fast-ssd/laya-dynamics-agent/checkpoints/laya-dynamics-v001}
+destination=${LAYA_EVACUATE_TO:-"$root/checkpoints/laya-dynamics-v001"}
 mkdir -p "$destination"
 rsync -az --partial "$remote:/data/laya-posttrain/checkpoints/laya-dynamics-v001/" "$destination/"
 (cd "$destination" && sha256sum -c SHA256SUMS)

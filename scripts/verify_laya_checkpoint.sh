@@ -1,10 +1,8 @@
 #!/bin/sh
 set -eu
-model_dir=${1:-"${LAYA_CHECKPOINT:-/mnt/fast-ssd/models/laya/base-english}"}
+model_dir=${1:-"${LAYA_CHECKPOINT:-}"}
 expected=${LAYA_EXPECTED_SHA256:-}
-if [ -z "$expected" ] && [ "$model_dir" = "/mnt/fast-ssd/models/laya/base-english" ]; then
-  expected="891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c"
-fi
+test -n "$model_dir" || { echo "Pass a checkpoint path or set LAYA_CHECKPOINT" >&2; exit 2; }
 test -f "$model_dir/model.safetensors"
 actual="$(sha256sum "$model_dir/model.safetensors" | cut -d ' ' -f 1)"
 if [ -n "$expected" ]; then

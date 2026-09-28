@@ -1,30 +1,31 @@
-# Exact commands for the reference machine
+# Portable local phase 1 commands
 
-These commands use `/home/kwestog/Documents/code/near_agi` and the downloaded checkpoint at `/mnt/fast-ssd/models/laya/base-english`. They place the heavy Python environment and download cache on the fast SSD.
+Choose a local storage directory before running these commands. Machine-specific paths belong in the shell or ignored `.env` file and must never be committed.
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
+export LDA_STORAGE="${LDA_STORAGE:-${XDG_DATA_HOME:-$HOME/.local/share}/laya-dynamics-agent}"
 
-mkdir -p /mnt/fast-ssd/laya-dynamics-agent
-mkdir -p /mnt/fast-ssd/uv-cache
+mkdir -p "$LDA_STORAGE"
+mkdir -p "$LDA_STORAGE/uv-cache"
 
-UV_PROJECT_ENVIRONMENT=/mnt/fast-ssd/laya-dynamics-agent/.venv \
-UV_CACHE_DIR=/mnt/fast-ssd/uv-cache \
+UV_PROJECT_ENVIRONMENT="$LDA_STORAGE/.venv" \
+UV_CACHE_DIR="$LDA_STORAGE/uv-cache" \
 uv sync --extra test
 
-UV_CACHE_DIR=/mnt/fast-ssd/uv-cache \
+UV_CACHE_DIR="$LDA_STORAGE/uv-cache" \
 uv pip install \
-  --python /mnt/fast-ssd/laya-dynamics-agent/.venv/bin/python \
+  --python "$LDA_STORAGE/.venv/bin/python" \
   "laya @ git+https://github.com/NandhaKishorM/laya.git@9d955671415fc19f069b9cc998928075c1f255ec"
 
-export LAYA_CHECKPOINT=/mnt/fast-ssd/models/laya/base-english
-export HF_HOME=/mnt/fast-ssd/huggingface
+export LAYA_CHECKPOINT=/path/to/laya/base-english
+export HF_HOME=/path/to/huggingface-cache
 
 ./scripts/verify_laya_checkpoint.sh
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda doctor
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/pytest
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda demo
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark --suite smoke --with-laya
+"$LDA_STORAGE/.venv/bin/lda" doctor
+"$LDA_STORAGE/.venv/bin/pytest"
+"$LDA_STORAGE/.venv/bin/lda" demo
+"$LDA_STORAGE/.venv/bin/lda" benchmark --suite smoke --with-laya
 ```
 
 The last command is a deterministic engineering smoke test. It validates the local Laya load and the complete prediction/policy/environment/storage loop; it is not yet the scientific live-GPT comparison. Reports are written under `reports/`, trajectories to `data/trajectories.sqlite3`, and events to `logs/runs/`.
@@ -36,7 +37,7 @@ The last command is a deterministic engineering smoke test. It validates the loc
 Copy the template once and edit only the local `.env` file; it is ignored by Git:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 cp .env.example .env
 nano .env
 ```
@@ -46,8 +47,8 @@ Use these exact values (replace only the key):
 ```dotenv
 OPENROUTER_API_KEY=sk-or-v1-REPLACE_ME
 OPENROUTER_MODEL=openai/gpt-5.6-sol
-LAYA_CHECKPOINT=/mnt/fast-ssd/models/laya/base-english
-HF_HOME=/mnt/fast-ssd/huggingface
+LAYA_CHECKPOINT=/path/to/laya/base-english
+HF_HOME=/path/to/huggingface-cache
 ```
 
 ## Phase 1 execution order
@@ -55,9 +56,9 @@ HF_HOME=/mnt/fast-ssd/huggingface
 First validate the benchmark without network or API cost:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/pytest
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark \
+cd near_agi
+"$LDA_STORAGE/.venv/bin/pytest"
+"$LDA_STORAGE/.venv/bin/lda" benchmark \
   --suite smoke \
   --provider deterministic \
   --seeds 0,1
@@ -66,8 +67,8 @@ cd /home/kwestog/Documents/code/near_agi
 Then validate the local Laya checkpoint, still without an API call:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark \
+cd near_agi
+"$LDA_STORAGE/.venv/bin/lda" benchmark \
   --suite smoke \
   --provider deterministic \
   --seeds 0 \
@@ -77,8 +78,8 @@ cd /home/kwestog/Documents/code/near_agi
 Finally run the small live OpenRouter comparison using the exact same GPT-5.6 Sol model for direct actions and candidate generation:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark \
+cd near_agi
+"$LDA_STORAGE/.venv/bin/lda" benchmark \
   --suite smoke \
   --provider openrouter \
   --model openai/gpt-5.6-sol \
@@ -91,10 +92,10 @@ The live campaign contains `direct_gpt`, `candidates_heuristic`, and `candidates
 For a clean CUDA-backed campaign that does not replay candidates from an earlier cache:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
   --suite smoke \
   --provider openrouter \
   --model openai/gpt-5.6-sol \
@@ -108,10 +109,10 @@ The fresh cache is named with the generated campaign identifier. Existing caches
 The next development campaign uses the nine-task challenge suite:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
   --suite challenge \
   --provider openrouter \
   --model openai/gpt-5.6-sol \
@@ -129,10 +130,10 @@ Press `Ctrl+C` once to request a graceful stop. The current atomic operation fin
 Run a one-seed pilot first to validate provider compatibility and estimate current cost. The report will intentionally say `NON-COMPLIANT PILOT`:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
   --suite final \
   --provider openrouter \
   --model openai/gpt-5.6-sol \
@@ -144,10 +145,10 @@ LAYA_DEVICE=cuda \
 After inspecting the pilot, run the pre-registered campaign:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
   --suite final \
   --provider openrouter \
   --model openai/gpt-5.6-sol \

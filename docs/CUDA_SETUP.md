@@ -24,21 +24,23 @@ The previous CPU run took approximately 36.8 seconds of predictor time. The CUDA
 Keep the existing environment until the replacement passes every check. The idempotent setup script creates or repairs a separate CUDA environment and runs the strict preflight:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
+export LDA_CUDA_ENV="${LDA_CUDA_ENV:-$(pwd)/.venv-cu124}"
+export LDA_UV_CACHE="${LDA_UV_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/laya-dynamics-agent/uv}"
 ./scripts/sync_cuda124.sh
 ```
 
 The script performs the following explicit operations:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 
-UV_PROJECT_ENVIRONMENT=/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124 \
-UV_CACHE_DIR=/mnt/fast-ssd/uv-cache \
+UV_PROJECT_ENVIRONMENT="$LDA_CUDA_ENV" \
+UV_CACHE_DIR="$LDA_UV_CACHE" \
 uv sync --extra test --extra laya
 
 uv pip install \
-  --python /mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/python \
+  --python "$LDA_CUDA_ENV/bin/python" \
   --index-url https://download.pytorch.org/whl/cu124 \
   "torch==2.6.0"
 ```
@@ -48,16 +50,16 @@ A normal `uv sync --extra laya` currently resolves PyTorch 2.14 with CUDA 13 and
 Do not promote this environment merely because installation succeeds. The script runs this strict preflight:
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda doctor --require-cuda
+"$LDA_CUDA_ENV/bin/lda" doctor --require-cuda
 ```
 
 The command must report `torch_cuda: true`, `cuda_ready: true`, and exit with status zero. Then run a no-API Laya smoke:
 
 ```bash
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+"$LDA_CUDA_ENV/bin/lda" benchmark \
   --suite smoke \
   --provider deterministic \
   --seeds 0 \

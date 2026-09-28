@@ -28,4 +28,4 @@ Therefore it is not a drop-in Laya trainer or proof that Laya fine-tuning can sp
 3. Write all mutable cloud outputs to a persistent volume.
 4. Pin source, base checkpoint, dataset and container revisions.
 5. Run a tiny local training smoke before provisioning cloud compute.
-6. If local training is impractical, run the unchanged experiment on an explicitly authorized Nebius instance and evacuate verified artifacts to `/mnt/fast-ssd/laya-dynamics-agent/`.
+6. If local training is impractical, run the unchanged experiment on an explicitly authorized Nebius instance and evacuate verified artifacts to `${LDA_STORAGE}/`.

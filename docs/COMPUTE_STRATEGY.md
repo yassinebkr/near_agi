@@ -22,7 +22,7 @@ Every job consumes a frozen dataset hash plus `configs/train/*.yaml` and emits:
 - checkpoint SHA-256, calibration temperatures, raw validation/calibration/test metrics;
 - provider and instance type, with cost when a cloud backend is used.
 
-Cloud output must be copied back to `/mnt/fast-ssd/laya-dynamics-agent/` and verified by checksum before the instance is stopped. Secrets, provider credentials, generated datasets, and large checkpoints never enter Git.
+Cloud output must be copied back to `${LDA_STORAGE}/` and verified by checksum before the instance is stopped. Secrets, provider credentials, generated datasets, and large checkpoints never enter Git.
 
 ## Decision rule
 

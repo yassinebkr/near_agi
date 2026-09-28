@@ -2,7 +2,7 @@
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-python_bin=${PYTHON_BIN:-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/python}
+python_bin=${PYTHON_BIN:-python}
 output=${1:-"$root/data/posttrain/v001/raw"}
 
 cd "$root"

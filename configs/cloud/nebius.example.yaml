@@ -12,7 +12,7 @@ workspace: /data/laya-posttrain
 dataset_manifest: data/posttrain/v001/raw/manifest.json
 train_config: configs/train/v001.yaml
 output_uri: /data/laya-posttrain/checkpoints/laya-dynamics-v001
-local_verified_destination: /mnt/fast-ssd/laya-dynamics-agent/checkpoints
+local_verified_destination: null
 console_gpu_hour_usd: 2.16
 hard_compute_budget_usd: 16
 max_billable_wall_hours: 6

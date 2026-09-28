@@ -415,3 +415,25 @@ def test_predictor_wall_and_reported_latency_are_distinct(tmp_path: Path):
     assert result["predictor_wall_ms"] != result["predictor_reported_ms"]
     event_text = (tmp_path / "predictor-logs" / "predictor" / "events.jsonl").read_text()
     assert '"wall_clock_ms"' in event_text
+
+
+def test_tracked_files_do_not_expose_workstation_identifiers():
+    import subprocess
+    root = Path(__file__).resolve().parents[1]
+    tracked = subprocess.run(["git", "ls-files", "-z"], cwd=root, check=True,
+                             capture_output=True).stdout.split(b"\0")
+    local_user = b"kwe" + b"stog"
+    forbidden = (b"/home/" + local_user, b"/mnt/" + b"fast-ssd",
+                 b"nebius-" + b"pilot", b"89.169." + b"109.237", local_user + b"@")
+    leaks = []
+    for raw_path in tracked:
+        if not raw_path:
+            continue
+        path = root / raw_path.decode()
+        if not path.is_file():
+            continue
+        content = path.read_bytes()
+        for token in forbidden:
+            if token in content:
+                leaks.append(f"{raw_path.decode()}: {token.decode()}")
+    assert leaks == []

@@ -1,6 +1,6 @@
 schema_version: "1.0"
 status: planned
-base_checkpoint: /mnt/fast-ssd/models/laya/base-english
+base_checkpoint: null
 base_revision: 55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851
 seed: 20260928
 split_strategy: template_disjoint

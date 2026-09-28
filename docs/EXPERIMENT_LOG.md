@@ -20,7 +20,7 @@ The deterministic fixture makes provider generation nearly instantaneous, while 
 
 ## benchmark-795a36f9 · challenge · seed 0
 
-Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `/mnt/fast-ssd/models/laya/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped.
+Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `<local-checkpoint>/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped.
 
 | arm | runs | success | mean steps | unsafe | predictor time |
 |:--|--:|--:|--:|--:|--:|
@@ -40,7 +40,7 @@ This challenge suite is a visible development benchmark. It does not satisfy the
 
 ## benchmark-a314047d · final-v001 pilot · seed 0
 
-Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `/mnt/fast-ssd/models/laya/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped. This was the pre-registered one-seed pilot and is explicitly non-compliant for final inference because it did not use seeds `0,1,2,3,4`.
+Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `<local-checkpoint>/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped. This was the pre-registered one-seed pilot and is explicitly non-compliant for final inference because it did not use seeds `0,1,2,3,4`.
 
 | arm | runs | success | success 95% CI | mean steps | steps 95% CI | unsafe | unnecessary |
 |:--|--:|--:|:--|--:|:--|--:|--:|

@@ -19,9 +19,9 @@ Before restarting any paid VM, require green tests and a completed local validat
 ## 1. Freeze the local dataset
 
 ```bash
-cd /home/kwestog/Documents/code/near_agi
+cd near_agi
 
-PYTHON_BIN=/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/python \
+PYTHON_BIN="${PYTHON_BIN:-python}" \
   scripts/build_dataset.sh
 
 python -m json.tool configs/train/v001.dataset-manifest.json
@@ -106,7 +106,7 @@ From the local machine:
 scripts/nebius_evacuate.sh ubuntu@VM_IP
 ```
 
-The default verified destination is `/mnt/fast-ssd/laya-dynamics-agent/checkpoints/laya-dynamics-v001`.
+Set `LAYA_EVACUATE_TO` to an external local storage directory. If it is unset, artifacts are verified under the ignored local `checkpoints/` directory.
 
 After local verification, delete the VM, network disk, every image or snapshot, and any static public IP. Confirm that the Nebius project has no billable resources.
 

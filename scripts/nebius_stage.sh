@@ -9,8 +9,9 @@ fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 remote=$1
 dataset=${POSTTRAIN_DATA_ROOT:-"$root/data/posttrain/v001"}
-base=${LAYA_BASE:-/mnt/fast-ssd/models/laya/base-english}
+base=${LAYA_BASE:-}
 
+test -n "$base" || { echo "Set LAYA_BASE to the local base-checkpoint directory" >&2; exit 2; }
 test -f "$dataset/raw/manifest.json" || { echo "Build the dataset first" >&2; exit 2; }
 ssh "$remote" "mkdir -p /data/laya-posttrain/repo /data/laya-posttrain/data/v001/raw /data/laya-posttrain/base-english"
 rsync -az --delete --exclude .git --exclude .env --exclude data --exclude reports --exclude logs \

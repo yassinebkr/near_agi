@@ -74,7 +74,7 @@ A clean local CUDA/OpenRouter challenge run is:
 
 ```bash
 LAYA_DEVICE=cuda \
-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+uv run lda benchmark \
   --suite challenge \
   --provider openrouter \
   --model openai/gpt-5.6-sol \
