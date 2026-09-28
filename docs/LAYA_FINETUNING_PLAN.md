@@ -6,6 +6,21 @@ The base English checkpoint currently adds latency and sometimes an unnecessary 
 
 The final-v001 benchmark remains untouched. Its three templates, 90 tasks, five seeds and task-manifest fingerprint are evaluation-only. No final-v001 state, candidate, label or outcome may enter training, calibration, prompt tuning or model-selection decisions.
 
+## Research claim and ambition
+
+The published Laya browser-agent result is a useful reference point, but not a directly comparable baseline. Its reported end-to-end result moved from 0% zero-shot task success to 62% for the fine-tuned 322M model on 16 browser tasks over three runs; the nearby 63% figure is the 322M model's element top-1 score on 2,734 held-out decisions. Our benchmark measures a different agent, action space and environment, so we must not present a higher number as a direct reproduction or replacement of that result.
+
+Our primary research objective is nevertheless deliberately stronger: determine whether a domain-specialized Laya selector can approach perfect task success while preserving the speed advantage of a small local decision model. "Approach perfect" means at least 95% success on unseen task families, with zero unsafe actions, fewer unnecessary actions than base Laya, and no statistically supported regression against direct GPT. A point estimate of 100% is a stretch result, not proof of universal reliability.
+
+The evidence ladder is:
+
+- fit: held-out transition prediction and calibration improve on disjoint instances;
+- transfer: the fine-tuned selector beats base Laya and the heuristic on unseen development templates;
+- final: it reaches at least 95% success on frozen final-v001, with paired bootstrap intervals and per-template results reported;
+- generalization: a later external computer-use suite with unseen sites, perturbations and failure recovery reproduces the gain.
+
+Only the first three claims are in scope for the current experiment. Near-100% on final-v001 would establish strong performance in our bounded environment, not near-100% general computer use. To keep that result credible, final-v001 remains single-use for the declared comparison; any training iteration after seeing it requires a new hidden final suite and manifest.
+
 ## Evidence behind the compute choice
 
 The local checkpoint is the 421M English model with an 842,609,210-byte safetensors file. The official Laya typed-decisions recipe trains this model for four epochs over roughly 30,000 questions on two T4 GPUs in four to five hours, with encoder and head gradient checkpointing. The official browser-agent adaptation reports full fine-tuning on one 16 GB RTX 4070 Ti SUPER: four epochs take about two hours for the 421M model and one hour for the 322M model. It explicitly says that 16 GB fits micro-batch 4 at length 1024 without checkpointing.
@@ -44,7 +59,7 @@ The first target is 30,000 to 60,000 typed questions, balanced across the six pr
 
 ## Promotion and kill rules
 
-Promote to final evaluation only if the fine-tuned model beats base Laya on held-out transition prediction, does not increase unsafe selections, and reduces unnecessary actions on the development test without materially increasing decision latency. Reject the training recipe if it merely memorizes templates, improves calibration without improving ranking, or loses to the transparent heuristic.
+Promote to final evaluation only if the fine-tuned model beats base Laya on held-out transition prediction, does not increase unsafe selections, reduces unnecessary actions on the development test without materially increasing decision latency, and reaches at least 95% success on the unseen development templates. Reject the training recipe if it merely memorizes templates, improves calibration without improving ranking, or loses to the transparent heuristic.
 
 The project hypothesis fails in its present form if a correctly trained and calibrated Laya still cannot match the heuristic selector or if its final-v001 task success is below direct GPT. A negative result is valid and should end further spend until the state/action representation or research question changes.
 
