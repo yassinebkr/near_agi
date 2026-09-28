@@ -1,7 +1,26 @@
 schema_version: "1.0"
-status: milestone_2_placeholder
-base_checkpoint: laya
+status: planned
+base_checkpoint: /mnt/fast-ssd/models/laya/base-english
+base_revision: 55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851
 seed: 20260928
-split_strategy: task_site_template
+split_strategy: template_disjoint
 calibration_split: calibration
+final_suite: final-v001
+final_suite_training_access: forbidden
+question_target: 30000-60000
+local_probe:
+  sequence_length: 1024
+  micro_batch: 1
+  gradient_accumulation: 32
+  encoder_gradient_checkpointing: true
+  head_gradient_checkpointing: true
+  torch_compile: false
+  max_reserved_vram_gb: 7.5
+  max_projected_wall_hours: 12
+cloud_fallback:
+  provider: nebius
+  preferred_gpu: L40S
+  preemptible: true
+  hard_compute_budget_usd: 16
+  require_explicit_launch_approval: true
 
