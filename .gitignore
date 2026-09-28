@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+data/trajectories.sqlite3
 data/raw/*
 data/processed/*
 data/splits/*
