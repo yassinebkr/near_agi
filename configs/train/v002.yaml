@@ -1,0 +1,36 @@
+schema_version: "2.0"
+status: dataset_planned
+base_checkpoint: null
+base_revision: 55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851
+seed: 20260929
+split_strategy: template_and_vocabulary_disjoint
+calibration_split: calibration
+final_suite: final-v001
+final_suite_training_access: forbidden
+dataset:
+  raw_manifest: configs/train/v002.dataset-manifest.json
+  training_instances: 450
+  validation_instances: 75
+  calibration_instances: 75
+  development_instances: 150
+  opaque_action_ids: true
+  shuffled_candidate_order: true
+  disjoint_path_vocabularies: true
+runtime_gates:
+  smoke_required: true
+  challenge_required: true
+  final_on_pass_only: true
+cloud_recipe:
+  epochs: 4
+  sequence_length: 1024
+  head_max_length: 256
+  micro_batch: 4
+  gradient_accumulation: 8
+  effective_batch: 32
+  encoder_learning_rate: 0.000025
+  head_learning_rate: 0.0001
+  checkpoint_interval_seconds: 600
+  encoder_gradient_checkpointing: true
+  head_gradient_checkpointing: true
+  torch_compile: false
+  laya_revision: 9d955671415fc19f069b9cc998928075c1f255ec

@@ -12,12 +12,18 @@ from laya_dynamics_agent.sandbox import SUITES, SandboxWebEnvironment, TASKS, an
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
 from laya_dynamics_agent.posttrain import (
     _format_train_event,
+    _question_for_laya,
     _restore_rng_state,
     _training_repetitions,
     promotion_gate,
     verify_dataset,
 )
 from laya_dynamics_agent.training_data import DEFAULT_SPLIT_SIZES, PROPERTIES, build_dataset
+from laya_dynamics_agent.training_data_v2 import (
+    DEFAULT_SPLIT_SIZES as V2_SPLIT_SIZES,
+    build_dataset as build_dataset_v2,
+    iter_rows as iter_rows_v2,
+)
 
 def test_state_hash_is_stable():
     env=SandboxWebEnvironment();a=env.reset("voltage-001");b=env.reset("voltage-001");assert a.state_hash==b.state_hash
@@ -290,6 +296,32 @@ def test_laya_device_policy_selects_available_cuda():
         cuda = Cuda()
     assert resolve_laya_device("auto", Torch()) == "cuda"
     assert resolve_laya_device("cuda", Torch()) == "cuda"
+
+
+def test_v2_dataset_is_deterministic_and_uses_opaque_actions(tmp_path: Path):
+    sizes = {split: 3 for split in V2_SPLIT_SIZES}
+    first = build_dataset_v2(tmp_path / "first", split_sizes=sizes)
+    second = build_dataset_v2(tmp_path / "second", split_sizes=sizes)
+    assert first == second
+    assert first["schema_version"] == "2.0"
+    train_rows = list(iter_rows_v2("train", 3, 20260928))
+    dev_rows = list(iter_rows_v2("development", 3, 20260928))
+    forbidden = ("official", "archive", "community", "danger", "answer", "primary")
+    assert all(not any(word in row["candidate_action"]["action_id"] for word in forbidden)
+               for row in train_rows + dev_rows)
+    train_paths = {row["candidate_action"]["args"].get("path") for row in train_rows}
+    dev_paths = {row["candidate_action"]["args"].get("path") for row in dev_rows}
+    train_paths.discard(None); dev_paths.discard(None)
+    assert train_paths.isdisjoint(dev_paths)
+    assert not any(row["task_id"].startswith("final-") or row["template_id"].startswith("heldout-")
+                   for row in train_rows + dev_rows)
+
+
+def test_preprocessing_preserves_runtime_noul_labels():
+    question = LayaPredictor.questions()["success"]
+    compact = _question_for_laya(question)
+    assert compact["labels"] == question["labels"]
+    assert compact["crit"] == question["criteria"]
 
 
 def test_posttraining_dataset_is_deterministic_disjoint_and_final_free(tmp_path: Path):

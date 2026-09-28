@@ -52,7 +52,7 @@ def _format_train_event(row: dict[str, Any]) -> str:
 def verify_dataset(dataset_dir: Path) -> dict[str, Any]:
     manifest_path = dataset_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != "1.0":
+    if manifest.get("schema_version") not in {"1.0", "2.0"}:
         raise RuntimeError("unsupported dataset manifest schema")
     for split, metadata in manifest["splits"].items():
         path = dataset_dir / metadata["path"]
@@ -65,6 +65,14 @@ def verify_dataset(dataset_dir: Path) -> dict[str, Any]:
     if train_templates & dev_templates:
         raise RuntimeError("development templates overlap training templates")
     return manifest
+
+
+def _question_for_laya(question: dict[str, Any]) -> dict[str, Any]:
+    compact = {"t": question["type"], "ins": question["instructions"],
+               "crit": question.get("criteria")}
+    if "labels" in question:
+        compact["labels"] = question["labels"]
+    return compact
 
 
 def _target(question: dict[str, Any], gold: dict[str, Any]) -> list[float]:
@@ -119,7 +127,7 @@ def preprocess(dataset_dir: Path, checkpoint: Path, output_dir: Path,
                 if row["task_id"].startswith("final-") or row["template_id"].startswith(("heldout-", "final-")):
                     raise RuntimeError("final benchmark data reached preprocessing")
                 for qid, question in row["questions"].items():
-                    compact = {"t": question["type"], "ins": question["instructions"], "crit": question.get("criteria")}
+                    compact = _question_for_laya(question)
                     sequence, markers = build_sequence(tokenizer, row["state"], compact, max_len, head_max_len)
                     expected = len(render_options(compact))
                     if len(markers) != expected:
@@ -364,7 +372,7 @@ def calibrate(items_path: Path, checkpoint: Path) -> dict[str, Any]:
     for qtype, rows in logits_by_type.items():
         if not rows:
             continue
-        candidates = [math.exp(math.log(.2) + index * (math.log(10) - math.log(.2)) / 199) for index in range(200)]
+        candidates = [math.exp(math.log(.5) + index * (math.log(5) - math.log(.5)) / 199) for index in range(200)]
         def nll(temp: float) -> float:
             return sum(float(-(target * torch.log_softmax(logits / temp, -1)).sum()) for logits, target in rows) / len(rows)
         best = min(candidates, key=nll)
