@@ -174,6 +174,12 @@ def _collate(items: list[dict[str, Any]], pad_id: int) -> dict[str, Any]:
     }
 
 
+def _restore_rng_state(torch_module: Any, cpu_state: Any, cuda_states: list[Any]) -> None:
+    """Restore RNG tensors on the devices required by the PyTorch APIs."""
+    torch_module.set_rng_state(cpu_state.cpu())
+    torch_module.cuda.set_rng_state_all([state.cpu() for state in cuda_states])
+
+
 def train(items_path: Path, base: Path, output: Path, *, epochs: int, micro_batch: int,
           gradient_accumulation: int, seed: int, max_steps: int,
           checkpoint_seconds: int, max_wall_seconds: int) -> dict[str, Any]:
@@ -211,15 +217,14 @@ def train(items_path: Path, base: Path, output: Path, *, epochs: int, micro_batc
     checkpoint = output / "resume.pt"
     epoch_start = batch_start = step = 0
     if checkpoint.exists():
-        saved = torch.load(checkpoint, map_location=device, weights_only=False)
+        saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         if saved["data_sha256"] != data_sha or saved["seed"] != seed:
             raise RuntimeError("resume checkpoint does not match dataset or seed")
         model.load_state_dict(saved["model"], strict=True)
         optimizer.load_state_dict(saved["optimizer"])
         scheduler.load_state_dict(saved["scheduler"])
         epoch_start, batch_start, step = saved["epoch"], saved["batch"], saved["step"]
-        torch.set_rng_state(saved["torch_rng"])
-        torch.cuda.set_rng_state_all(saved["cuda_rng"])
+        _restore_rng_state(torch, saved["torch_rng"], saved["cuda_rng"])
     stop = {"requested": False, "signal": None}
     def request_stop(signum: int, _frame: Any) -> None:
         stop.update(requested=True, signal=signum)

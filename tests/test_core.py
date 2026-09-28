@@ -10,7 +10,13 @@ from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, re
 from laya_dynamics_agent.runner_impl import run_episode
 from laya_dynamics_agent.sandbox import SUITES, SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
-from laya_dynamics_agent.posttrain import _format_train_event, _training_repetitions, promotion_gate, verify_dataset
+from laya_dynamics_agent.posttrain import (
+    _format_train_event,
+    _restore_rng_state,
+    _training_repetitions,
+    promotion_gate,
+    verify_dataset,
+)
 from laya_dynamics_agent.training_data import DEFAULT_SPLIT_SIZES, PROPERTIES, build_dataset
 
 def test_state_hash_is_stable():
@@ -288,6 +294,42 @@ def test_posttraining_console_log_is_human_readable():
         "[train] step=3 | epoch=1 | loss=0.125000 | ce=0.250000 | "
         "456.7 tok/s | peak_vram=21.50 GiB | elapsed=12.3s"
     )
+
+
+def test_posttraining_resume_restores_rng_states_on_cpu():
+    class State:
+        def __init__(self):
+            self.cpu_calls = 0
+
+        def cpu(self):
+            self.cpu_calls += 1
+            return self
+
+    class FakeCuda:
+        def __init__(self):
+            self.states = None
+
+        def set_rng_state_all(self, states):
+            self.states = states
+
+    class FakeTorch:
+        def __init__(self):
+            self.cuda = FakeCuda()
+            self.cpu_state = None
+
+        def set_rng_state(self, state):
+            self.cpu_state = state
+
+    torch_module = FakeTorch()
+    cpu_state = State()
+    cuda_states = [State(), State()]
+
+    _restore_rng_state(torch_module, cpu_state, cuda_states)
+
+    assert torch_module.cpu_state is cpu_state
+    assert torch_module.cuda.states == cuda_states
+    assert cpu_state.cpu_calls == 1
+    assert [state.cpu_calls for state in cuda_states] == [1, 1]
 
 
 def test_posttraining_promotion_gate_is_fail_closed(tmp_path: Path):
