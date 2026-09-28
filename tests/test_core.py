@@ -84,6 +84,19 @@ def test_benchmark_report_has_real_direct_arm_and_aggregate(tmp_path: Path, monk
     assert (tmp_path / "reports/latest/metrics.json").exists()
 
 
+def test_fresh_candidate_cache_is_campaign_scoped(tmp_path: Path, monkeypatch):
+    class Event:
+        def is_set(self):
+            return False
+
+    class Shutdown:
+        event = Event()
+    monkeypatch.chdir(tmp_path)
+    report = asyncio.run(run_benchmark_suite(include_laya=False, provider="deterministic", model=None, shutdown=Shutdown(), seeds=(0,), fresh_candidate_cache=True, progress=lambda _: None))
+    assert report["fresh_candidate_cache"] is True
+    assert report["campaign_id"] in report["candidate_cache"]
+
+
 def test_direct_openrouter_prompt_explicitly_requests_json():
     assert "json" in _DIRECT_PROMPT.lower()
 
@@ -99,6 +112,7 @@ def test_terminal_summary_is_compact(capsys):
     print_benchmark_summary(report)
     output = capsys.readouterr().out
     assert "Benchmark complete" in output and "100.0%" in output
+    assert "---------------------------" not in output
     assert "Raw metrics: reports/latest/metrics.json" in output
 
 

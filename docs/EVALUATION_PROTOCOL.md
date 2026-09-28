@@ -4,6 +4,8 @@
 
 The primary live comparison uses one exact model id for both GPT arms: direct GPT action selection versus GPT candidate generation followed by a local transition selector. Candidate lists are cached by provider/model, prompt version, seed, candidate limit, and canonical state hash. Cache schema v2 stores generation timestamp, latency, provider, model, state hash, and original token/cost usage. Legacy entries remain replayable but are explicitly reported as having unknown usage provenance. Therefore heuristic and Laya selectors receive byte-equivalent candidates whenever they reach the same state. A direct GPT action is generated independently and is not mislabeled as “the first candidate”.
 
+Clean live campaigns must use `--fresh-candidate-cache`. This selects a new campaign-scoped cache without deleting previous evidence. Cache hits can still occur inside that campaign when the heuristic and Laya arms reach the same canonical state; these internal hits are required for a paired comparison and are not contamination from an earlier campaign.
+
 The smoke suite currently contains three deterministic tasks from three templates. It validates plumbing only. It cannot support a research claim. A claim requires untouched template-level test splits, at least 30 task instances per held-out template, and 5 declared seeds. Live model nondeterminism remains possible even when a replicate is labelled by a seed; cached responses make replay exact.
 
 ## Arms

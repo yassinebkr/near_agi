@@ -58,12 +58,13 @@ def _sum_usage(rows: list[dict[str, Any]]) -> dict[str, float]:
     return total
 
 
-async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str | None, shutdown: Any, seeds: tuple[int, ...] = DEFAULT_SEEDS, progress: Any = print) -> dict[str, Any]:
+async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str | None, shutdown: Any, seeds: tuple[int, ...] = DEFAULT_SEEDS, progress: Any = print, fresh_candidate_cache: bool = False) -> dict[str, Any]:
     campaign_id = f"benchmark-{uuid.uuid4().hex[:8]}"
     generator, direct = _planner_pair(provider, model)
     resolved_model = getattr(generator, "model", "deterministic")
     safe_model = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(resolved_model))
-    cache_path = Path("data/candidate_cache") / f"{provider}-{safe_model}.json"
+    cache_suffix = f"-{campaign_id}" if fresh_candidate_cache else ""
+    cache_path = Path("data/candidate_cache") / f"{provider}-{safe_model}{cache_suffix}.json"
     cached = CachedPlanner(generator, cache_path, prompt_version=PROMPT_VERSION)
     progress(f"Benchmark {campaign_id} | provider={provider} | model={resolved_model}")
     progress(f"Tasks: {len(TASKS)} | seeds: {','.join(map(str, seeds))} | Laya: {'yes' if include_laya else 'no'}")
@@ -120,7 +121,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                 break
     finally:
         store.close()
-    report = {"campaign_id": campaign_id, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(TASKS), "laya_runtime": laya_runtime, "candidate_cache": str(cache_path), "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
+    report = {"campaign_id": campaign_id, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(TASKS), "laya_runtime": laya_runtime, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
     root = Path("reports") / campaign_id
     root.mkdir(parents=True, exist_ok=True)
     (root / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")

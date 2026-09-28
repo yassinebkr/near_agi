@@ -88,6 +88,23 @@ cd /home/kwestog/Documents/code/near_agi
 
 The live campaign contains `direct_gpt`, `candidates_heuristic`, and `candidates_base_laya` across three tasks. Candidate responses are cached under `data/candidate_cache/`; trajectories are stored in `data/trajectories.sqlite3`, events under `logs/runs/`, and the comparative report under `reports/latest/`. Re-running an identical candidate state replays its cached response rather than spending another candidate-generation call. Direct GPT calls remain independent because they are the control arm.
 
+For a clean CUDA-backed campaign that does not replay candidates from an earlier cache:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+
+LAYA_DEVICE=cuda \
+/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+  --suite smoke \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --seeds 0 \
+  --with-laya \
+  --fresh-candidate-cache
+```
+
+The fresh cache is named with the generated campaign identifier. Existing caches are preserved. Within the new campaign, both candidate-selection arms continue to share byte-identical generated candidates.
+
 Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone. The smoke suite validates the experimental wiring; it is not the full statistically powered campaign.
 
 ## Terminal output

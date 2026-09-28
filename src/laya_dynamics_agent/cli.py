@@ -135,7 +135,7 @@ async def dispatch(args: argparse.Namespace) -> Any:
     if args.command == "demo":
         return await execute("heuristic", planner_provider=args.provider, model=args.model, shutdown=shutdown)
     seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
-    return await run_benchmark_suite(include_laya=args.with_laya, provider=args.provider, model=args.model, shutdown=shutdown, seeds=seeds)
+    return await run_benchmark_suite(include_laya=args.with_laya, provider=args.provider, model=args.model, shutdown=shutdown, seeds=seeds, fresh_candidate_cache=args.fresh_candidate_cache)
 
 
 def add_planner_arguments(parser: argparse.ArgumentParser) -> None:
@@ -186,7 +186,6 @@ def print_benchmark_summary(report: dict[str, Any]) -> None:
     print(f"Campaign: {report['campaign_id']}")
     print(f"Provider: {report['provider']} | model: {report['model']}")
     print("Mode                         Runs  Success  Steps  Unsafe  Predictor")
-    print("---------------------------  ----  -------  -----  ------  ---------")
     for mode, metrics in report["aggregate"]["modes"].items():
         predictor_seconds = metrics["predictor_latency_ms"] / 1000
         print(f"{mode:<27}  {metrics['episodes']:>4}  {metrics['success_rate']:>7.1%}  {metrics['mean_steps']:>5.2f}  {metrics['unsafe_actions']:>6}  {predictor_seconds:>7.1f}s")
@@ -213,6 +212,7 @@ def main() -> None:
     bench.add_argument("--suite", default="smoke", choices=["smoke"])
     bench.add_argument("--with-laya", action="store_true")
     bench.add_argument("--seeds", default="0", help="Comma-separated deterministic seeds, e.g. 0,1,2")
+    bench.add_argument("--fresh-candidate-cache", action="store_true", help="Use a new campaign-scoped candidate cache without deleting existing caches")
     bench.add_argument("--json", action="store_true", help="Print the complete JSON result to the terminal")
     bench.add_argument("--debug", action="store_true", help="Show full tracebacks")
     add_planner_arguments(bench)
