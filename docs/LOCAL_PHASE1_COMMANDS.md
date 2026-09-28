@@ -105,6 +105,23 @@ LAYA_DEVICE=cuda \
 
 The fresh cache is named with the generated campaign identifier. Existing caches are preserved. Within the new campaign, both candidate-selection arms continue to share byte-identical generated candidates.
 
+The next development campaign uses the nine-task challenge suite:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+
+LAYA_DEVICE=cuda \
+/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+  --suite challenge \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --seeds 0 \
+  --with-laya \
+  --fresh-candidate-cache
+```
+
+This produces 27 episodes: nine direct-GPT episodes, nine heuristic-selector episodes, and nine base-Laya episodes. Start with one seed. Multi-seed execution is deferred until the challenge results have been inspected and the held-out dataset exists.
+
 Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone. The smoke suite validates the experimental wiring; it is not the full statistically powered campaign.
 
 ## Terminal output

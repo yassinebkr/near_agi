@@ -33,7 +33,7 @@ Labels derive from sandbox state changes and ground truth: terminal correctness,
 
 ## Benchmark
 
-Paired task templates and declared seeds compare `direct_gpt`, `candidates_heuristic`, and, only when a checkpoint loads, `candidates_base_laya`. Direct GPT chooses an action in a separate prompt; it is not approximated by selecting the first candidate. Candidate responses are cached by canonical state and experimental metadata so selector arms replay identical lists on identical states. Smoke runs validate plumbing and do not support scientific conclusions. Full evaluation will split by task template, use repeated seeds, retain raw results, and report mean/median/std/bootstrap intervals, success, steps, unsafe actions, tokens, latency, RAM, and VRAM.
+Paired task templates and declared seeds compare `direct_gpt`, `candidates_heuristic`, and, only when a checkpoint loads, `candidates_base_laya`. Direct GPT chooses an action in a separate prompt; it is not approximated by selecting the first candidate. Candidate responses are cached by canonical state and experimental metadata so selector arms replay identical lists on identical states. Smoke runs validate plumbing. The nine-task `challenge` suite exercises broader templates and distractors but remains a visible development set; neither suite supports scientific conclusions. Full evaluation will split by task template, use repeated seeds, retain raw results, and report mean/median/std/bootstrap intervals, success, steps, unsafe actions, tokens, latency, RAM, and VRAM.
 
 ## Risks
 
@@ -51,7 +51,7 @@ Paired task templates and declared seeds compare `direct_gpt`, `candidates_heuri
 4. Add deterministic and OpenAI planners.
 5. Add explicit policies and loop detection.
 6. Add Laya adapter with typed mappings and telemetry.
-7. Run end-to-end demo and paired smoke benchmark.
+7. Run end-to-end demo, paired smoke benchmark, and nine-task development challenge.
 8. Harden tests and produce report artifacts.
 9. Milestone 2: collect trajectories, template-level splits, reproduce official fine-tune, calibrate on a disjoint set, evaluate untouched test.
 10. Milestone 3 only after a positive result: DAgger and broader templates.

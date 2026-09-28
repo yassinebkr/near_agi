@@ -8,6 +8,8 @@ Clean live campaigns must use `--fresh-candidate-cache`. This selects a new camp
 
 The smoke suite currently contains three deterministic tasks from three templates. It validates plumbing only. It cannot support a research claim. A claim requires untouched template-level test splits, at least 30 task instances per held-out template, and 5 declared seeds. Live model nondeterminism remains possible even when a replicate is labelled by a seed; cached responses make replay exact.
 
+The `challenge` suite contains all nine current tasks across eight templates. It broadens fact formats and distractors: conflicting community claims, archived values, official specifications or policies, safety-sensitive wording, and simulated irreversible actions. It is a development benchmark, not a held-out test set, because its tasks live in the repository and influence implementation.
+
 ## Arms
 
 - `direct_gpt`: the configured GPT model chooses one action directly.
