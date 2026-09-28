@@ -22,6 +22,12 @@ from .storage_v2 import TrajectoryStore
 PROMPT_VERSION = "planner-v001"
 DIRECT_PROMPT_VERSION = "direct-v001"
 DEFAULT_SEEDS = (0,)
+def _atomic_json(path: Path, value: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n")
+    temporary.replace(path)
+
 
 
 def _planner_pair(provider: str, model: str | None) -> tuple[Any, Any]:
@@ -205,8 +211,14 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                               seeds: tuple[int, ...] = DEFAULT_SEEDS, progress: Any = print,
                               fresh_candidate_cache: bool = False, suite: str = "smoke",
                               base_laya_checkpoint: str | None = None,
-                              finetuned_laya_checkpoint: str | None = None) -> dict[str, Any]:
-    campaign_id = f"benchmark-{uuid.uuid4().hex[:8]}"
+                              finetuned_laya_checkpoint: str | None = None,
+                              campaign_id: str | None = None,
+                              resume: bool = False) -> dict[str, Any]:
+    if resume and not campaign_id:
+        raise ValueError("--resume requires --campaign-id")
+    campaign_id = campaign_id or f"benchmark-{uuid.uuid4().hex[:8]}"
+    if not re.fullmatch(r"benchmark-[A-Za-z0-9_.-]+", campaign_id):
+        raise ValueError("campaign id must start with benchmark- and contain only portable characters")
     generator, direct = _planner_pair(provider, model)
     resolved_model = getattr(generator, "model", "deterministic")
     safe_model = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(resolved_model))
@@ -245,7 +257,30 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
         add_laya_arm("candidates_finetuned_laya", finetuned_laya_checkpoint)
     laya_runtime = laya_runtimes.get("candidates_base_laya")
     store = TrajectoryStore(Path("data/trajectories.sqlite3"), Path("logs/runs"))
+    checkpoint_path = Path("reports") / campaign_id / "checkpoint.json"
+    checkpoint_config = {
+        "campaign_id": campaign_id, "suite": suite, "provider": provider,
+        "model": str(resolved_model), "seeds": list(seeds),
+        "base_laya_checkpoint": base_laya_checkpoint,
+        "finetuned_laya_checkpoint": finetuned_laya_checkpoint,
+        "fresh_candidate_cache": fresh_candidate_cache,
+    }
     results: list[dict[str, Any]] = []
+    if resume:
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"benchmark checkpoint not found: {checkpoint_path}")
+        checkpoint = json.loads(checkpoint_path.read_text())
+        if checkpoint.get("config") != checkpoint_config:
+            raise ValueError("resume configuration does not match the saved benchmark checkpoint")
+        results = [row for row in checkpoint.get("results", [])
+                   if row.get("stop_reason") not in {"interrupted", "error"}]
+        progress(f"Resuming {campaign_id}: {len(results)} completed episodes found")
+    completed_run_ids = {row["run_id"] for row in results}
+    if not resume:
+        _atomic_json(checkpoint_path, {
+            "schema_version": "1.0", "status": "running",
+            "config": checkpoint_config, "results": results,
+        })
     total_episodes = len(seeds) * len(task_ids) * len(configs)
     episode_number = 0
     try:
@@ -260,17 +295,25 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                     if shutdown.event.is_set():
                         break
                     episode_number += 1
+                    run_id = f"{campaign_id}-{mode}-{task_id}-s{seed}"
+                    if run_id in completed_run_ids:
+                        progress(f"[{episode_number}/{total_episodes}] {task_id} | {mode} | seed={seed} | checkpoint replay")
+                        continue
                     progress(f"[{episode_number}/{total_episodes}] {task_id} | {mode} | seed={seed} ...")
                     episode_started = time.perf_counter()
-                    run_id = f"{campaign_id}-{mode}-{task_id}-s{seed}"
                     config = {"campaign_id": campaign_id, "mode": mode, "task_id": task_id, "template_id": TASKS[task_id]["template_id"], "seed": seed, "provider": provider, "model": getattr(planner, "model", resolved_model), "prompt_version": DIRECT_PROMPT_VERSION if mode == "direct_gpt" else PROMPT_VERSION, "labeler_version": LABELER_VERSION, "laya_runtime": laya_runtimes.get(mode), "candidate_count": 1 if mode == "direct_gpt" else 5, "weights": UtilityWeights().__dict__, "candidate_cache": str(cache_path)}
-                    store.start_run(run_id, config)
+                    store.start_run(run_id, config, replace=resume)
                     try:
                         result = await run_episode(run_id=run_id, task_id=task_id, environment=SandboxWebEnvironment(), planner=planner, predictor=predictor, policy=policy, store=store, max_actions=1 if mode == "direct_gpt" else 5, stop_requested=shutdown.event.is_set)
                         result.update(run_id=run_id, campaign_id=campaign_id, mode=mode, seed=seed, template_id=config["template_id"], provider=provider, model=config["model"], prompt_version=config["prompt_version"])
                         status = "interrupted" if result["stop_reason"] == "interrupted" else "completed"
                         store.finish_run(run_id, status, result)
                         results.append(result)
+                        completed_run_ids.add(run_id)
+                        _atomic_json(checkpoint_path, {
+                            "schema_version": "1.0", "status": "running",
+                            "config": checkpoint_config, "results": results,
+                        })
                         marker = "OK" if result["success"] else "FAIL"
                         progress(f"    {marker} | steps={result['steps']} | stop={result['stop_reason']} | elapsed={result['wall_clock_ms'] / 1000:.1f}s")
                     except BaseException as exc:
@@ -293,14 +336,14 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
         "live_provider": provider in {"openai", "openrouter"},
         "complete": not shutdown.event.is_set() and len(results) == expected_episodes,
     }
-    report = {"campaign_id": campaign_id, "suite": suite, "suite_version": {"smoke": "smoke-v001", "challenge": "challenge-v001", "final": "final-v001"}[suite], "task_manifest_sha256": task_manifest_hash, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "laya_runtimes": laya_runtimes, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
+    report = {"campaign_id": campaign_id, "suite": suite, "suite_version": {"smoke": "smoke-v001", "challenge": "challenge-v001", "final": "final-v001"}[suite], "task_manifest_sha256": task_manifest_hash, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "laya_runtimes": laya_runtimes, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": sum(int(r.get("candidate_cache_hit_count", 0)) for r in results), "cache_misses": sum(int(r.get("candidate_fresh_count", 0)) for r in results), "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
     report["final_protocol"] = {**final_protocol, "compliant": all(final_protocol.values())}
     root = Path("reports") / campaign_id
     root.mkdir(parents=True, exist_ok=True)
-    (root / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
+    _atomic_json(root / "metrics.json", report)
     latest = Path("reports/latest")
     latest.mkdir(parents=True, exist_ok=True)
-    (latest / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
+    _atomic_json(latest / "metrics.json", report)
     lines = ["# Benchmark", "", f"Campaign: `{campaign_id}` · suite: `{suite}` · provider: `{provider}` · model: `{resolved_model}` · prompts: `{DIRECT_PROMPT_VERSION}` / `{PROMPT_VERSION}`", "", "Observed wall time is the measured runtime. Reconstructed end-to-end time adds original GPT candidate-generation latency only for cache replays with complete provenance.", "", "| mode | episodes | success | mean steps | wall mean | wall p50 | wall p90 | wall p95 | fresh | replay |", "|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|"]
     for mode, metrics in report["aggregate"]["modes"].items():
         values = [metrics[key] for key in ("mean_wall_clock_ms", "p50_wall_clock_ms", "p90_wall_clock_ms", "p95_wall_clock_ms")]
@@ -341,5 +384,10 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     summary = "\n".join(lines) + "\n"
     (root / "summary.md").write_text(summary)
     (latest / "summary.md").write_text(summary)
+    _atomic_json(checkpoint_path, {
+        "schema_version": "1.0",
+        "status": "interrupted" if shutdown.event.is_set() else "complete",
+        "config": checkpoint_config, "results": results,
+    })
     progress(f"Report: {latest / 'summary.md'}")
     return report

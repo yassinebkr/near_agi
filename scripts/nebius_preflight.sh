@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 workspace=${NEBIUS_WORKSPACE:-/data/laya-posttrain}
 python_bin=${PYTHON_BIN:-"$workspace/venv/bin/python"}
-dataset=${POSTTRAIN_DATA_ROOT:-"$workspace/data/v001"}
+dataset=${POSTTRAIN_DATA_ROOT:-"$workspace/data/v002"}
 base=${LAYA_BASE:-"$workspace/base-english"}
 
 test -x "$python_bin" || { echo "Missing Nebius virtual environment" >&2; exit 2; }

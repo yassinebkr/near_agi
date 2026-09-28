@@ -22,12 +22,12 @@ Before restarting any paid VM, require green tests and a completed local validat
 cd near_agi
 
 PYTHON_BIN="${PYTHON_BIN:-python}" \
-  scripts/build_dataset.sh
+  scripts/build_dataset_v2.sh
 
-python -m json.tool configs/train/v001.dataset-manifest.json
+python -m json.tool configs/train/v002.dataset-manifest.json
 ```
 
-The raw build contains 36,000 training, 5,400 validation, 5,400 calibration and 10,800 unseen-template development sequences. Deterministic rare-label oversampling expands only the training split to 58,800 sequences. The evaluation splits keep their natural distribution. Do not rebuild it after training begins.
+The v2 raw build contains 54,000 training, 9,000 validation, 9,000 calibration and 18,000 unseen-template development question sequences. Action identifiers are opaque, candidate order is shuffled, and training and development path vocabularies are disjoint. Do not rebuild it after training begins.
 
 ## 2. Create resources manually
 
@@ -57,7 +57,7 @@ RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
   scripts/nebius_stage.sh "$VM_HOST"
 ```
 
-`nebius_stage.sh` uses `rsync` at both endpoints. Configure the SSH key explicitly as above or load it into `ssh-agent`.
+`nebius_stage.sh` transfers every payload with `rsync`; it does not use `scp` or archive streaming. SSH remains the interactive control channel for bootstrap and `screen`. Configure the SSH key explicitly as above or load it into `ssh-agent`.
 
 On the VM:
 
@@ -82,7 +82,7 @@ screen -r laya
 
 The attached screen displays the original pipeline output. It labels preflight, preprocessing, training, calibration, evaluation and promotion-gate phases. Training progress is formatted as concise human-readable lines with step, epoch, loss, cross-entropy, throughput, peak VRAM and elapsed time. Detach without stopping the job with `Ctrl+A`, then `D`, and reattach later with `screen -r laya`.
 
-The complete original terminal stream is also recorded under `/data/laya-posttrain/logs/smoke-*.log`. The structured `/data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl` remains the audit source. After the session finishes, require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration.
+The complete original terminal stream is also recorded under `/data/laya-posttrain/logs/smoke-*.log`. The structured `/data/laya-posttrain/checkpoints/laya-dynamics-v002/train-log.jsonl` remains the audit source. After the session finishes, require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration.
 
 ## 5. Production run
 
@@ -90,11 +90,15 @@ The same output directory resumes the accepted smoke:
 
 ```bash
 cd /data/laya-posttrain/repo
+export OPENROUTER_API_KEY=your_key_here
+export OPENROUTER_MODEL=openai/gpt-5.6-sol
 NEBIUS_TRAIN_APPROVED=YES MAX_WALL_SECONDS=21600 scripts/nebius_screen.sh full
 screen -r laya
 ```
 
-The pipeline preprocesses once, trains four epochs, calibrates on the dedicated split, removes inherited option-bucket temperatures, verifies the checkpoint, writes `SHA256SUMS`, and powers off.
+The pipeline preprocesses once, trains four epochs, calibrates on the dedicated split, verifies the offline promotion gate, then runs checkpointed four-arm smoke and challenge gates. Only two passes unlock the single `final-v001` campaign. It writes `SHA256SUMS` and powers off after success, gate failure, interruption or error.
+
+Each benchmark writes `reports/<campaign>/checkpoint.json` atomically after every completed episode. Re-running the full screen command resumes the fixed v2 campaign, reuses its campaign-scoped candidate cache, skips completed episodes and restarts only an interrupted episode. The OpenRouter key remains in the process environment and is never written to a repository file or checkpoint.
 
 After preemption, attach the same disk to a compatible H100 VM, mount it at `/data`, and rerun the identical command. Dataset or seed mismatches fail closed.
 

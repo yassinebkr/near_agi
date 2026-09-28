@@ -27,14 +27,17 @@ fi
 if [ "$mode" = "smoke" ]; then
   auto_shutdown=0
   max_steps=3
+  runtime_benchmarks=0
 else
   auto_shutdown=1
   max_steps=0
+  runtime_benchmarks=1
+  test -n "${OPENROUTER_API_KEY:-}" || { echo "Export OPENROUTER_API_KEY before starting the full screen session." >&2; exit 2; }
 fi
 
 printf '[launcher] mode=%s | session=%s | log=%s\n' "$mode" "$session" "$log_file"
 screen -DmS "$session" -L -Logfile "$log_file" \
-  env NEBIUS_TRAIN_APPROVED=YES AUTO_SHUTDOWN="$auto_shutdown" MAX_STEPS="$max_steps" \
+  env NEBIUS_TRAIN_APPROVED=YES AUTO_SHUTDOWN="$auto_shutdown" MAX_STEPS="$max_steps" RUN_RUNTIME_BENCHMARKS="$runtime_benchmarks" \
   MAX_WALL_SECONDS="${MAX_WALL_SECONDS:-21600}" "$root/scripts/nebius_run.sh"
 printf '[launcher] started. Attach to the original live output with: screen -r %s\n' "$session"
 printf '[launcher] detach without stopping it with: Ctrl+A then D\n'

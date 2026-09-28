@@ -8,9 +8,9 @@ fi
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 remote=$1
-destination=${LAYA_EVACUATE_TO:-"$root/checkpoints/laya-dynamics-v001"}
+destination=${LAYA_EVACUATE_TO:-"$root/checkpoints/laya-dynamics-v002"}
 mkdir -p "$destination"
-rsync -az --partial "$remote:/data/laya-posttrain/checkpoints/laya-dynamics-v001/" "$destination/"
+rsync -az --partial "$remote:/data/laya-posttrain/checkpoints/laya-dynamics-v002/" "$destination/"
 (cd "$destination" && sha256sum -c SHA256SUMS)
 "$root/scripts/verify_laya_checkpoint.sh" "$destination"
 printf 'Artifacts verified at %s. Delete the VM, disk, image/snapshot and static IP in Nebius.\n' "$destination"

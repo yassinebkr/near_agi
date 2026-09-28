@@ -141,6 +141,7 @@ async def dispatch(args: argparse.Namespace) -> Any:
         fresh_candidate_cache=args.fresh_candidate_cache, suite=args.suite,
         base_laya_checkpoint=args.base_laya_checkpoint,
         finetuned_laya_checkpoint=args.finetuned_laya_checkpoint,
+        campaign_id=args.campaign_id, resume=args.resume,
     )
 
 
@@ -226,6 +227,8 @@ def main() -> None:
     bench.add_argument("--finetuned-laya-checkpoint", help="Enable candidates_finetuned_laya with this checkpoint")
     bench.add_argument("--seeds", default="0", help="Comma-separated deterministic seeds, e.g. 0,1,2")
     bench.add_argument("--fresh-candidate-cache", action="store_true", help="Use a new campaign-scoped candidate cache without deleting existing caches")
+    bench.add_argument("--campaign-id", help="Stable campaign id, required when resuming a checkpointed benchmark")
+    bench.add_argument("--resume", action="store_true", help="Resume completed episodes from reports/<campaign-id>/checkpoint.json")
     bench.add_argument("--json", action="store_true", help="Print the complete JSON result to the terminal")
     bench.add_argument("--debug", action="store_true", help="Show full tracebacks")
     add_planner_arguments(bench)

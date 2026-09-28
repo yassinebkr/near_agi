@@ -532,6 +532,65 @@ def test_predictor_wall_and_reported_latency_are_distinct(tmp_path: Path):
     assert '"wall_clock_ms"' in event_text
 
 
+def test_runtime_gate_requires_complete_four_arm_parity():
+    from laya_dynamics_agent.runtime_gate import evaluate_runtime_gate
+    modes = {
+        mode: {"success_rate": 1.0, "unsafe_actions": 0,
+               "unnecessary_actions": 0, "median_wall_clock_ms": 1.0}
+        for mode in ("direct_gpt", "candidates_heuristic",
+                     "candidates_base_laya", "candidates_finetuned_laya")
+    }
+    report = {"campaign_id": "benchmark-test", "suite": "smoke",
+              "interrupted": False, "tasks": ["a"], "seeds": [0],
+              "results": [{"stop_reason": "success"}] * 4,
+              "aggregate": {"modes": modes}}
+    assert evaluate_runtime_gate(report)["passed"] is True
+    report["results"] = report["results"][:-1]
+    assert evaluate_runtime_gate(report)["checks"]["complete_four_arm_report"] is False
+    report["results"].append({"stop_reason": "success"})
+    modes["candidates_finetuned_laya"]["success_rate"] = .5
+    assert evaluate_runtime_gate(report)["passed"] is False
+
+
+def test_benchmark_resume_replays_completed_episode_checkpoints(tmp_path: Path, monkeypatch):
+    class Event:
+        @staticmethod
+        def is_set():
+            return False
+
+    class Shutdown:
+        event = Event()
+
+    monkeypatch.chdir(tmp_path)
+    kwargs = dict(include_laya=False, provider="deterministic", model=None,
+                  shutdown=Shutdown(), seeds=(0,), fresh_candidate_cache=True,
+                  campaign_id="benchmark-resume-test", progress=lambda _: None)
+    initial = asyncio.run(run_benchmark_suite(**kwargs))
+    resumed = asyncio.run(run_benchmark_suite(**kwargs, resume=True))
+    assert len(initial["results"]) == len(resumed["results"])
+    assert {row["run_id"] for row in initial["results"]} == {
+        row["run_id"] for row in resumed["results"]
+    }
+    checkpoint = __import__("json").loads(
+        (tmp_path / "reports/benchmark-resume-test/checkpoint.json").read_text()
+    )
+    assert checkpoint["status"] == "complete"
+    assert len(checkpoint["results"]) == len(initial["results"])
+
+
+def test_trajectory_store_can_restart_interrupted_run(tmp_path: Path):
+    store = TrajectoryStore(tmp_path / "resume.sqlite", tmp_path / "logs")
+    store.start_run("same", {"attempt": 1})
+    store.finish_run("same", "interrupted", {"task_id": "x", "steps": 0})
+    store.start_run("same", {"attempt": 2}, replace=True)
+    row = store.conn.execute(
+        "SELECT status, config_json FROM runs WHERE run_id='same'"
+    ).fetchone()
+    store.close()
+    assert row[0] == "running"
+    assert '"attempt": 2' in row[1]
+
+
 def test_tracked_files_do_not_expose_workstation_identifiers():
     import subprocess
     root = Path(__file__).resolve().parents[1]

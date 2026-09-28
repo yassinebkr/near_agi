@@ -9,9 +9,9 @@ fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 workspace=${NEBIUS_WORKSPACE:-/data/laya-posttrain}
 python_bin="$workspace/venv/bin/python"
-dataset=${POSTTRAIN_DATA_ROOT:-"$workspace/data/v001"}
+dataset=${POSTTRAIN_DATA_ROOT:-"$workspace/data/v002"}
 base=${LAYA_BASE:-"$workspace/base-english"}
-output=${LAYA_OUTPUT:-"$workspace/checkpoints/laya-dynamics-v001"}
+output=${LAYA_OUTPUT:-"$workspace/checkpoints/laya-dynamics-v002"}
 
 phase() {
   printf '[pipeline %s] %s\n' "$(date -u +%H:%M:%S)" "$1"
@@ -66,7 +66,12 @@ if [ -f "$output/model.safetensors" ]; then
   "$root/scripts/verify_laya_checkpoint.sh" "$output"
   (cd "$output" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
   if [ "$gate_status" -eq 0 ]; then
-    phase "Pipeline complete; promotion gate passed"
+    phase "Offline promotion gate passed"
+    if [ "${RUN_RUNTIME_BENCHMARKS:-0}" = "1" ]; then
+      phase "Starting checkpointed smoke, challenge and final runtime pipeline"
+      "$root/scripts/nebius_runtime_benchmarks.sh"
+    fi
+    phase "Pipeline complete; all enabled gates passed"
   else
     phase "Pipeline complete; promotion gate failed"
   fi

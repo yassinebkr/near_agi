@@ -16,14 +16,15 @@ The `challenge` suite contains all nine current tasks across eight templates. It
 
 A compliant final report requires the `final` suite, all five registered seeds, a fresh campaign-scoped cache, both base and fine-tuned Laya enabled, a live provider, and complete execution. Reports record `final_protocol.compliant`, `suite_version`, and `task_manifest_sha256`, plus standard deviations, deterministic 95% bootstrap intervals, per-template results, and paired success and step deltas.
 
-Before the single-use final campaign, a fine-tuned checkpoint must pass both the deterministic runtime smoke and visible challenge suites through the same `LayaPredictor` API used by final evaluation. Offline tensor-level development scores alone cannot promote a checkpoint. Runtime failure closes the gate without exposing final-v001.
+Before the single-use final campaign, a fine-tuned checkpoint must pass both the live four-arm runtime smoke and visible challenge suites through the same `LayaPredictor` API used by final evaluation. Offline tensor-level development scores alone cannot promote a checkpoint. Runtime failure closes the gate without exposing final-v001.
+The automated v2 pipeline uses stable campaign identifiers and atomically checkpoints each completed episode. Smoke and challenge require a complete four-arm report, fine-tuned success no worse than the best control, zero fine-tuned unsafe actions, and no increase in unnecessary actions relative to base Laya. Any failure stops before the next suite.
 
 ## Arms
 
 - `direct_gpt`: the configured GPT model chooses one action directly.
 - `candidates_heuristic`: the configured GPT model generates candidates. A transparent heuristic scores them.
 - `candidates_base_laya`: the same cached candidates are scored by the unmodified local Laya checkpoint.
-- `candidates_finetuned_laya`: the same cached candidates are scored by the promoted `laya-dynamics-v001` checkpoint.
+- `candidates_finetuned_laya`: the same cached candidates are scored by the promoted `laya-dynamics-v002` checkpoint.
 
 The deterministic provider supplies offline stand-ins for wiring tests and must never be reported as GPT or Laya performance.
 
