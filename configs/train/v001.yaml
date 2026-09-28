@@ -8,6 +8,16 @@ calibration_split: calibration
 final_suite: final-v001
 final_suite_training_access: forbidden
 question_target: 30000-60000
+dataset:
+  raw_manifest: configs/train/v001.dataset-manifest.json
+  raw_training_sequences: 36000
+  balanced_training_sequences: 58800
+  templates:
+    training: 3
+    development: 2
+  final_prefixes_forbidden:
+    - heldout-
+    - final-
 local_probe:
   sequence_length: 1024
   micro_batch: 1
@@ -22,5 +32,20 @@ cloud_fallback:
   preferred_gpu: L40S
   preemptible: true
   hard_compute_budget_usd: 16
+  max_billable_wall_hours: 18
   require_explicit_launch_approval: true
+cloud_recipe:
+  epochs: 4
+  sequence_length: 1024
+  head_max_length: 256
+  micro_batch: 4
+  gradient_accumulation: 8
+  effective_batch: 32
+  encoder_learning_rate: 0.000025
+  head_learning_rate: 0.0001
+  checkpoint_interval_seconds: 600
+  encoder_gradient_checkpointing: true
+  head_gradient_checkpointing: true
+  torch_compile: false
+  laya_revision: 9d955671415fc19f069b9cc998928075c1f255ec
 

@@ -10,6 +10,8 @@ from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, re
 from laya_dynamics_agent.runner_impl import run_episode
 from laya_dynamics_agent.sandbox import SUITES, SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
+from laya_dynamics_agent.posttrain import _training_repetitions, promotion_gate, verify_dataset
+from laya_dynamics_agent.training_data import DEFAULT_SPLIT_SIZES, PROPERTIES, build_dataset
 
 def test_state_hash_is_stable():
     env=SandboxWebEnvironment();a=env.reset("voltage-001");b=env.reset("voltage-001");assert a.state_hash==b.state_hash
@@ -237,3 +239,52 @@ def test_laya_device_policy_selects_available_cuda():
         cuda = Cuda()
     assert resolve_laya_device("auto", Torch()) == "cuda"
     assert resolve_laya_device("cuda", Torch()) == "cuda"
+
+
+def test_posttraining_dataset_is_deterministic_disjoint_and_final_free(tmp_path: Path):
+    sizes = {split: 2 for split in DEFAULT_SPLIT_SIZES}
+    first = build_dataset(tmp_path / "first", split_sizes=sizes)
+    second = build_dataset(tmp_path / "second", split_sizes=sizes)
+    assert first == second
+    assert first["splits"]["train"]["question_sequences"] == 2 * 4 * 5 * len(PROPERTIES)
+    assert not (set(first["splits"]["train"]["templates"]) & set(first["splits"]["development"]["templates"]))
+    for split in sizes:
+        text = (tmp_path / "first" / f"{split}.jsonl").read_text()
+        assert '"task_id":"final-' not in text
+        assert '"template_id":"heldout-' not in text
+    assert verify_dataset(tmp_path / "first") == first
+
+
+def test_posttraining_manifest_detects_dataset_tampering(tmp_path: Path):
+    sizes = {split: 1 for split in DEFAULT_SPLIT_SIZES}
+    build_dataset(tmp_path, split_sizes=sizes)
+    with (tmp_path / "train.jsonl").open("a") as handle:
+        handle.write("{}\n")
+    try:
+        verify_dataset(tmp_path)
+    except RuntimeError as exc:
+        assert "checksum mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered training data should fail closed")
+
+
+def test_posttraining_rare_label_balancing_is_train_only_policy():
+    assert _training_repetitions("success", [0.0, 1.0]) == 19
+    assert _training_repetitions("success", [1.0, 0.0]) == 1
+    assert _training_repetitions("risk", [0.0, 1.0]) == 4
+    assert _training_repetitions("reversible", [1.0, 0.0]) == 4
+    assert _training_repetitions("needs_more_observation", [1.0, 0.0]) == 2
+
+
+def test_posttraining_promotion_gate_is_fail_closed(tmp_path: Path):
+    base = {"mean_absolute_error": .4, "selection_accuracy": .6, "unsafe_selections": 0}
+    candidate = {"mean_absolute_error": .2, "selection_accuracy": .96, "unsafe_selections": 0}
+    base_path, candidate_path = tmp_path / "base.json", tmp_path / "candidate.json"
+    base_path.write_text(__import__("json").dumps(base))
+    candidate_path.write_text(__import__("json").dumps(candidate))
+    assert promotion_gate(base_path, candidate_path)["passed"] is True
+    candidate["selection_accuracy"] = .94
+    candidate_path.write_text(__import__("json").dumps(candidate))
+    failed = promotion_gate(base_path, candidate_path)
+    assert failed["passed"] is False
+    assert failed["checks"]["development_selection_at_least_95pct"] is False

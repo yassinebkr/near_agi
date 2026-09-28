@@ -12,6 +12,8 @@ test = ["pytest>=8.3", "pytest-asyncio>=0.24"]
 
 [project.scripts]
 lda = "laya_dynamics_agent.cli:main"
+lda-build-training-data = "laya_dynamics_agent.training_data:main"
+lda-posttrain = "laya_dynamics_agent.posttrain:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -26,4 +28,3 @@ packages = ["src/laya_dynamics_agent"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-

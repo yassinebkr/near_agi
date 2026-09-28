@@ -8,6 +8,7 @@ data/candidate_cache/
 data/raw/*
 data/processed/*
 data/splits/*
+data/posttrain/
 logs/*
 reports/*
 checkpoints/*

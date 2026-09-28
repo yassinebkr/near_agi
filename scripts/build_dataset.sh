@@ -1,5 +1,12 @@
 #!/bin/sh
 set -eu
-echo "Milestone 2: dataset build is intentionally not implemented before loop validation." >&2
-exit 2
 
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+python_bin=${PYTHON_BIN:-/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/python}
+output=${1:-"$root/data/posttrain/v001/raw"}
+
+cd "$root"
+"$python_bin" -m laya_dynamics_agent.training_data --output "$output"
+"$python_bin" -m laya_dynamics_agent.posttrain verify-data --dataset-dir "$output"
+cp "$output/manifest.json" "$root/configs/train/v001.dataset-manifest.json"
+printf 'Dataset ready: %s\n' "$output"

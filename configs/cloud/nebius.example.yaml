@@ -1,13 +1,22 @@
 schema_version: "1.0"
 provider: nebius
 enabled: false
-# Fill only after choosing the reference training profile. Never store credentials here.
-instance_type: null
-gpu_count: null
-container_image: null
-dataset_manifest: null
+region: eu-north1
+gpu_family: NVIDIA L40S
+gpu_count: 1
+preemptible: true
+image: Ubuntu 24.04 with NVIDIA driver
+network_ssd_gib: 100
+mount_point: /data
+workspace: /data/laya-posttrain
+dataset_manifest: data/posttrain/v001/raw/manifest.json
 train_config: configs/train/v001.yaml
-output_uri: null
+output_uri: /data/laya-posttrain/checkpoints/laya-dynamics-v001
 local_verified_destination: /mnt/fast-ssd/laya-dynamics-agent/checkpoints
+listed_gpu_hour_usd: 0.74
+hard_compute_budget_usd: 16
+max_billable_wall_hours: 18
+checkpoint_interval_seconds: 600
+auto_shutdown: true
+delete_vm_disk_ip_after_evacuation: true
 require_explicit_launch_approval: true
-
