@@ -2,7 +2,7 @@ schema_version: "1.0"
 provider: nebius
 enabled: false
 region: eu-north1
-gpu_family: NVIDIA L40S
+gpu_family: NVIDIA H100
 gpu_count: 1
 preemptible: true
 image: Ubuntu 24.04 with NVIDIA driver
@@ -13,9 +13,9 @@ dataset_manifest: data/posttrain/v001/raw/manifest.json
 train_config: configs/train/v001.yaml
 output_uri: /data/laya-posttrain/checkpoints/laya-dynamics-v001
 local_verified_destination: /mnt/fast-ssd/laya-dynamics-agent/checkpoints
-listed_gpu_hour_usd: 0.74
+console_gpu_hour_usd: 2.16
 hard_compute_budget_usd: 16
-max_billable_wall_hours: 18
+max_billable_wall_hours: 6
 checkpoint_interval_seconds: 600
 auto_shutdown: true
 delete_vm_disk_ip_after_evacuation: true

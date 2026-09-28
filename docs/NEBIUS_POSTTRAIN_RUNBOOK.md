@@ -2,7 +2,7 @@
 
 ## Scope
 
-This procedure runs domain post-training on one preemptible NVIDIA L40S. It never creates Nebius resources; VM, disk and IP creation remain deliberate console actions because they are billable. Training follows Laya's published single-GPU RLCD recipe at pinned revision `9d955671415fc19f069b9cc998928075c1f255ec`.
+This procedure runs domain post-training on one preemptible NVIDIA H100. It never creates Nebius resources; VM, disk and IP creation remain deliberate console actions because they are billable. Training follows Laya's published single-GPU RLCD recipe at pinned revision `9d955671415fc19f069b9cc998928075c1f255ec`.
 
 ## Safety invariants
 
@@ -29,9 +29,9 @@ The raw build contains 36,000 training, 5,400 validation, 5,400 calibration and 
 
 ## 2. Create resources manually
 
-Check the live Nebius price immediately before creation. Create one preemptible L40S in `eu-north1`, an Ubuntu 24.04 NVIDIA image, and a 100 GiB persistent network SSD mounted at `/data`.
+Check the live Nebius price immediately before creation. Create one preemptible H100 in `eu-north1`, an Ubuntu 24.04 NVIDIA image, and a 100 GiB persistent network SSD mounted at `/data`.
 
-The compute ceiling is $16 before tax. At the recorded $0.74/GPU-hour price, the configured 18-hour maximum costs $13.32 and leaves setup margin. If the live price exceeds $0.88/hour, reduce `MAX_WALL_SECONDS`. Nebius billing, not trainer time, is authoritative.
+The compute ceiling is $16 before tax. The console quote recorded on 2026-09-28 is $2.16 per hour for one H100. The configured six-hour maximum costs $12.96 and leaves $3.04 for bootstrap time and variance. Nebius billing is authoritative.
 
 Do not create a reusable image or snapshot.
 
@@ -80,13 +80,13 @@ cd /data/laya-posttrain/repo
 NEBIUS_TRAIN_APPROVED=YES \
 AUTO_SHUTDOWN=1 \
 MAX_STEPS=0 \
-MAX_WALL_SECONDS=64800 \
+MAX_WALL_SECONDS=21600 \
 scripts/nebius_run.sh
 ```
 
 The pipeline preprocesses once, trains four epochs, calibrates on the dedicated split, removes inherited option-bucket temperatures, verifies the checkpoint, writes `SHA256SUMS`, and powers off.
 
-After preemption, attach the same disk to a compatible L40S VM, mount it at `/data`, and rerun the identical command. Dataset or seed mismatches fail closed.
+After preemption, attach the same disk to a compatible H100 VM, mount it at `/data`, and rerun the identical command. Dataset or seed mismatches fail closed.
 
 ## 6. Evacuate and teardown
 

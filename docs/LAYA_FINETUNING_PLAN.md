@@ -29,7 +29,7 @@ Our RTX 3070 Ti has 8 GB. For the 421M checkpoint, full-parameter AdamW has a st
 
 BeyondVRAM remains the operations reference, not the Laya trainer. Its historical H200 run used a measured $2.58/h configuration and demonstrated checkpoint/resume, evacuation, fail-closed gates and teardown. Current Nebius list prices differ: L40S starts at $1.55/GPU-hour on demand and $0.74 preemptible; H100/H200 preemptible starts at $0.79, while H100 and H200 on demand are $3.85 and $4.50 before the announced October 2026 increase. Spot prices are dynamic and exclude tax. Since upstream Laya fits on 16 GB, an L40S is already ample; an H200 is unnecessary unless availability makes it cheaper in practice.
 
-With a remaining $20 balance, reserve 20% for setup, storage and retries. The hard compute budget is $16. At the listed L40S preemptible rate this is about 21.6 GPU-hours before tax, far beyond the expected one-to-three-hour Laya run. The console price must be checked immediately before creation, and the job must auto-stop at the budget cap.
+The 2026-09-28 console check found that L40S capacity was available only as a two-GPU allocation. A single H100 was quoted at $2.16 per hour, $0.10 less per hour than the two-L40S allocation, so H100 is the selected target. With a remaining $20 balance, the hard compute budget stays at $16. A six-hour execution cap costs at most $12.96 before tax and leaves $3.04 for bootstrap time and variance.
 
 ## Dataset contract
 
@@ -53,7 +53,7 @@ The first target is 30,000 to 60,000 typed questions, balanced across the six pr
 2. Run one local CUDA optimizer step on the 421M checkpoint with sequence length 1024, micro-batch 1, gradient accumulation, encoder and decision-head checkpointing, autocast, and `torch.compile` disabled. Record peak allocated and reserved VRAM, wall time, tokens per second and checkpoint size.
 3. Continue locally only if peak reserved VRAM is at most 7.5 GB, there is no CPU parameter offload, checkpoint reload is exact, and projected full-run wall time is at most 12 hours. Otherwise stop; an OOM is a routing result, not a failure to hide.
 4. Run a small end-to-end training smoke on 256–1,024 items. Require decreasing held-out transition loss and improvement over the base checkpoint on the development split. Fit temperatures on the separate calibration split and remove inherited option-bucket temperatures before export.
-5. If the local gate fails, launch one Nebius L40S preemptible instance with a persistent network disk. Reuse BeyondVRAM's ten-minute checkpoints, SIGTERM save, resume cursor, artifact hashes, evacuation and automatic teardown. Set a $16 hard budget and do not provision without explicit approval.
+5. If the local gate fails, launch one Nebius H100 preemptible instance with a persistent network disk. Reuse BeyondVRAM's ten-minute checkpoints, SIGTERM save, resume cursor, artifact hashes, evacuation and automatic teardown. Set a $16 hard budget and do not provision without explicit approval.
 6. Train the frozen recipe, export an ordinary Laya checkpoint, reload it locally and evaluate base versus fine-tuned on the development suite. Only a clear development win unlocks final-v001.
 7. Run final-v001 once with identical cached GPT candidates for `candidates_base_laya` and `candidates_finetuned_laya`. Direct GPT and heuristic remain controls. Report paired success, steps, unsafe actions, prediction error, latency and calibration.
 

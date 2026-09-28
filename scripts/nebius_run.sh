@@ -29,7 +29,7 @@ if [ ! -f "$dataset/tokenized/manifest.json" ]; then
 fi
 
 POSTTRAIN_APPROVED=YES PYTHON_BIN="$python_bin" POSTTRAIN_DATA_ROOT="$dataset" \
-LAYA_BASE="$base" LAYA_OUTPUT="$output" MAX_WALL_SECONDS="${MAX_WALL_SECONDS:-64800}" \
+LAYA_BASE="$base" LAYA_OUTPUT="$output" MAX_WALL_SECONDS="${MAX_WALL_SECONDS:-21600}" \
   "$root/scripts/train_laya.sh"
 
 if [ -f "$output/model.safetensors" ]; then

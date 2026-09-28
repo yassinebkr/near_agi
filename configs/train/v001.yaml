@@ -29,10 +29,10 @@ local_probe:
   max_projected_wall_hours: 12
 cloud_fallback:
   provider: nebius
-  preferred_gpu: L40S
+  preferred_gpu: H100
   preemptible: true
   hard_compute_budget_usd: 16
-  max_billable_wall_hours: 18
+  max_billable_wall_hours: 6
   require_explicit_launch_approval: true
 cloud_recipe:
   epochs: 4

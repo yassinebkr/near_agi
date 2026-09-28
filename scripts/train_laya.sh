@@ -20,5 +20,5 @@ exec "$python_bin" -m laya_dynamics_agent.posttrain train \
   --micro-batch "${MICRO_BATCH:-4}" \
   --gradient-accumulation "${GRADIENT_ACCUMULATION:-8}" \
   --checkpoint-seconds "${CHECKPOINT_SECONDS:-600}" \
-  --max-wall-seconds "${MAX_WALL_SECONDS:-64800}" \
+  --max-wall-seconds "${MAX_WALL_SECONDS:-21600}" \
   --max-steps "${MAX_STEPS:-0}"
