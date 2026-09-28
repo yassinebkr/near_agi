@@ -16,8 +16,16 @@ def plain(x: Any) -> Any:
 class TrajectoryStore:
     def __init__(self, db_path: Path, log_root: Path):
         db_path.parent.mkdir(parents=True,exist_ok=True); self.conn=sqlite3.connect(db_path); self.conn.executescript(SCHEMA); self.log_root=log_root
+        columns={row[1] for row in self.conn.execute("PRAGMA table_info(runs)")}
+        if "ended_at" not in columns: self.conn.execute("ALTER TABLE runs ADD COLUMN ended_at TEXT")
+        if "status" not in columns: self.conn.execute("ALTER TABLE runs ADD COLUMN status TEXT NOT NULL DEFAULT 'running'")
+        self.conn.commit()
     def start_run(self,run_id:str,config:dict[str,Any]):
-        now=datetime.now(timezone.utc).isoformat(); self.conn.execute("INSERT INTO runs VALUES(?,?,?)",(run_id,json.dumps(config,sort_keys=True),now)); self.conn.commit(); self.event(run_id,"-",0,"run_started",{"config":config})
+        now=datetime.now(timezone.utc).isoformat(); self.conn.execute("INSERT INTO runs(run_id,config_json,started_at,status) VALUES(?,?,?,'running')",(run_id,json.dumps(config,sort_keys=True),now)); self.conn.commit(); self.event(run_id,"-",0,"run_started",{"config":config})
+    def finish_run(self,run_id:str,status:str,summary:dict[str,Any]):
+        now=datetime.now(timezone.utc).isoformat(); self.conn.execute("UPDATE runs SET ended_at=?,status=? WHERE run_id=?",(now,status,run_id));self.conn.commit();self.event(run_id,summary.get("task_id","-"),summary.get("steps",0),"run_interrupted" if status=="interrupted" else "run_finished",{"status":status,"summary":summary})
+    def close(self):
+        self.conn.commit();self.conn.close()
     def save_step(self,run_id:str,task_id:str,step:int,**data:Any):
         enc=lambda x:json.dumps(plain(x),sort_keys=True)
         self.conn.execute("INSERT INTO steps VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(run_id,task_id,step,enc(data["state_before"]),enc(data["candidates"]),enc(data["predictions"]),enc(data["chosen_action"]),enc(data["state_after"]),enc(data["observed"]),data["reward"],enc(data.get("timings",{})),data.get("error")));self.conn.commit();self.event(run_id,task_id,step,"transition",plain(data))

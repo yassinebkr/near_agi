@@ -29,3 +29,20 @@ export HF_HOME=/mnt/fast-ssd/huggingface
 
 The last command is a deterministic engineering smoke test. It validates the local Laya load and the complete prediction/policy/environment/storage loop; it is not yet the scientific live-GPT comparison. Reports are written under `reports/`, trajectories to `data/trajectories.sqlite3`, and events to `logs/runs/`.
 
+
+
+## OpenRouter with GPT-5.6 Sol
+
+```bash
+export OPENROUTER_API_KEY=sk-or-v1-...
+export OPENROUTER_MODEL=openai/gpt-5.6-sol
+export LAYA_CHECKPOINT=/mnt/fast-ssd/models/laya/base-english
+
+/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda \
+  benchmark --suite smoke \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --with-laya
+```
+
+Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone.

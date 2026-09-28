@@ -41,3 +41,16 @@ Machine-specific commands are kept in [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHAS
 
 Milestone 1 currently provides the reliable end-to-end loop, GPT-only/heuristic controls, the real Laya adapter, storage, loop guards, and smoke reporting. A scientifically meaningful GPT-only versus base-Laya run still requires a configured live GPT planner, local checkpoint, repeated tasks/seeds, and resource charts; fine-tuning is deliberately deferred until this loop is validated.
 
+
+
+### OpenRouter planner
+
+OpenRouter uses its own key and defaults to the exact model id `openai/gpt-5.6-sol`:
+
+```bash
+export OPENROUTER_API_KEY=sk-or-v1-...
+export OPENROUTER_MODEL=openai/gpt-5.6-sol
+uv run lda benchmark --suite smoke --provider openrouter --with-laya
+```
+
+No provider fallback is implicit. OAuth is deliberately deferred to the later Shopifast-based authentication milestone. During a run, the first `Ctrl+C` requests a graceful stop after the current atomic planner/predictor/environment operation; the partial run is finalized in SQLite and JSONL with status `interrupted`.
