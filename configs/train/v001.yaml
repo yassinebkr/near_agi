@@ -1,0 +1,7 @@
+schema_version: "1.0"
+status: milestone_2_placeholder
+base_checkpoint: laya
+seed: 20260928
+split_strategy: task_site_template
+calibration_split: calibration
+
