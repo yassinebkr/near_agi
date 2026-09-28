@@ -36,7 +36,7 @@ LAYA_CHECKPOINT=/path/to/checkpoint uv run lda benchmark --suite smoke --with-la
 Add `OPENAI_API_KEY` and `OPENAI_MODEL` to `.env` for future live-planner runs; `.env` is ignored. The current CLI intentionally does not silently substitute a fake Laya or OpenAI result.
 
 The sandbox is an in-process deterministic web abstraction with primary/secondary sources, a contradiction, and a simulated irreversible action. Complete transitions go to `data/trajectories.sqlite3` and `logs/runs/<run_id>/events.jsonl`; reports go to `reports/`. See [implementation plan](docs/IMPLEMENTATION_PLAN.md), [Laya audit](docs/LAYA_AUDIT.md), and [evaluation protocol](docs/EVALUATION_PROTOCOL.md).
-See also [compute strategy](docs/COMPUTE_STRATEGY.md) for local, Beyond VRAM, and optional Nebius execution.
+See also [compute strategy](docs/COMPUTE_STRATEGY.md): Phase 1 inference stays local; Nebius is reserved for explicitly authorized fine-tuning/post-training.
 Machine-specific commands are kept in [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHASE1_COMMANDS.md), outside the portable quickstart.
 
 Milestone 1 currently provides the reliable end-to-end loop, GPT-only/heuristic controls, the real Laya adapter, storage, loop guards, and smoke reporting. A scientifically meaningful GPT-only versus base-Laya run still requires a configured live GPT planner, local checkpoint, repeated tasks/seeds, and resource charts; fine-tuning is deliberately deferred until this loop is validated.

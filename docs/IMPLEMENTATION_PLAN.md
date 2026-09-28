@@ -38,7 +38,7 @@ Paired task templates and seeds compare `gpt_only`, `heuristic`, and, only when 
 ## Risks
 
 - Laya 0.3.20 base checkpoints are weak zero-shot and miscalibrated; reported confidence is not correctness.
-- RTX 3070 Ti 8 GB is the local measurement target, not a hard training limit; Milestone 2 may use the verified Beyond VRAM path or explicitly authorized Nebius compute while preserving the same experimental contract.
+- RTX 3070 Ti 8 GB is the local inference and training-smoke target, not a hard training limit. Full Milestone 2 fine-tuning/post-training may use explicitly authorized Nebius compute, reusing the proven cloud lifecycle from BeyondVRAM while preserving the same experimental contract.
 - Candidate formatting can dominate checkpoint differences; formatting version is recorded.
 - A deterministic planner proves the loop, not the GPT-vs-Laya hypothesis. Live experiments require OpenAI credentials and the local checkpoint.
 - Python 3.13 is available locally, but Laya/PyTorch compatibility may require Python 3.11 or 3.12; the project permits 3.11–3.13 and `doctor` reports the actual stack.

@@ -17,7 +17,7 @@ BeyondVRAM is directly relevant as an experimental and operations reference: it 
 
 ## Important boundary
 
-BeyondVRAM's local over-VRAM work primarily concerns inference, quantization, placement and measurement. Its working training path is a model-specific bf16 LoRA job on a large-VRAM Nebius GPU. The repository explicitly records its attempted local QLoRA path for a 30B model as infeasible on 32 GiB RAM because CPU-dispatched modules remained fp32.
+BeyondVRAM has two distinct bodies of work that must not be conflated. Its over-VRAM inference, quantization, placement and measurement experiments run locally. Separately, Nebius was used only for fine-tuning/post-training: a model-specific bf16 LoRA job on a large-VRAM GPU. No BeyondVRAM inference run on Nebius is claimed. The repository explicitly records its attempted local QLoRA path for a 30B model as infeasible on 32 GiB RAM because CPU-dispatched modules remained fp32.
 
 Therefore it is not a drop-in Laya trainer or proof that Laya fine-tuning can spill transparently to NVMe. We reuse the research discipline, checkpoint/resume lifecycle and Nebius operations. Laya training itself must adapt the official Laya decision-head/RLCD notebook and be validated first with a one-step smoke run.
 

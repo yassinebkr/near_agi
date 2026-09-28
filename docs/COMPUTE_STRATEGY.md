@@ -2,11 +2,13 @@
 
 Local VRAM is a routing constraint, not a blocker for Milestone 2. The training pipeline must produce the same dataset manifest, configuration, seeds, metrics, and checkpoint manifest regardless of execution backend.
 
-## Execution tiers
+## Separate execution scopes
 
-1. **Local native GPU** — preferred for inference, smoke training, profiling, and the smallest reproducible run on the RTX 3070 Ti 8 GB.
-2. **Local Beyond VRAM** — reuse the user's existing GitHub work for measured CPU/RAM/NVMe offload experiments. Integration starts only after its repository URL and supported training contract are recorded; no unverified assumption is made that an inference offload engine supports Laya backpropagation.
-3. **Nebius cloud** — optional for the reference fine-tune when local execution is too slow or cannot fit optimizer/activation state. Provisioning is an explicit, user-authorized operation because it creates billable resources.
+1. **Phase 1 inference and benchmarks: local only** — run the complete Laya checkpoint on the RTX 3070 Ti and record latency, VRAM and RAM. Nebius is not an inference backend for this project.
+2. **Milestone 2 training smoke: local** — validate preprocessing, loss, one optimizer step, checkpoint writing and reload on the smallest useful sample.
+3. **Milestone 2 full fine-tuning/post-training: Nebius when required** — reuse BeyondVRAM's measured cloud-training lifecycle when the reference run does not fit locally or would take unreasonably long. Provisioning remains an explicit, user-authorized billable action.
+
+BeyondVRAM also contains local inference/offload research, but that work is not presented as a Laya training backend and is not the reason Nebius is included here.
 
 ## Portability contract
 
@@ -24,9 +26,9 @@ Cloud output must be copied back to `/mnt/fast-ssd/laya-dynamics-agent/` and ver
 
 ## Decision rule
 
-First reproduce a tiny official-style training step locally. Then benchmark local native versus the verified Beyond VRAM path. Use Nebius only if local execution is impossible or its projected wall time is unreasonable. Backend choice must not change splits or evaluation criteria.
+First reproduce a tiny official-style training step locally. Then estimate the complete run from measured memory and throughput. Use Nebius only for fine-tuning/post-training if the local run is impossible or its projected wall time is unreasonable. Training location must not change splits or evaluation criteria. All inference evaluation remains local unless a future protocol explicitly introduces and justifies another inference environment.
 
 ## Audited integration
 
-BeyondVRAM was audited at commit `28d0a005b72f46b1dc360fcda1afc010f2766e14`; see `docs/BEYONDVRAM_AUDIT.md`. Reuse is limited to verified experimental and cloud-training patterns, not assumed transparent Laya training offload.
+BeyondVRAM was audited at commit `28d0a005b72f46b1dc360fcda1afc010f2766e14`; see `docs/BEYONDVRAM_AUDIT.md`. For Nebius we reuse only its verified fine-tuning/post-training operations: persistent outputs, resumable checkpoints, SIGTERM handling, evacuation, cost tracking and teardown. We do not attribute any Nebius inference experiment to BeyondVRAM.
 
