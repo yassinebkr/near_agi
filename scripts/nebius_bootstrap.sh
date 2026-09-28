@@ -6,6 +6,10 @@ workspace=${NEBIUS_WORKSPACE:-/data/laya-posttrain}
 venv="$workspace/venv"
 
 test -d /data || { echo "/data persistent disk is not mounted" >&2; exit 2; }
+if ! command -v screen >/dev/null 2>&1 || ! command -v rsync >/dev/null 2>&1; then
+  sudo apt-get update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y screen rsync
+fi
 mkdir -p "$workspace/checkpoints" "$workspace/data"
 python3 -m venv "$venv"
 "$venv/bin/python" -m pip install --upgrade pip

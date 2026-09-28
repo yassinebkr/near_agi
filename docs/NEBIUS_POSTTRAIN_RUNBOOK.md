@@ -62,8 +62,7 @@ RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
 On the VM:
 
 ```bash
-ssh ubuntu@VM_IP
-screen -RR laya
+ssh -i SSH_KEY -o IdentitiesOnly=yes USER@VM_IP
 cd /data/laya-posttrain/repo
 scripts/nebius_bootstrap.sh
 scripts/nebius_preflight.sh
@@ -77,29 +76,13 @@ After checking the live price and balance:
 
 ```bash
 cd /data/laya-posttrain/repo
-
-NEBIUS_TRAIN_APPROVED=YES \
-AUTO_SHUTDOWN=0 \
-MAX_STEPS=3 \
-scripts/nebius_run.sh
+NEBIUS_TRAIN_APPROVED=YES scripts/nebius_screen.sh smoke
+screen -r laya
 ```
 
-Inspect `/data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl`. Require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration.
+The attached screen displays the original pipeline output. It labels preflight, preprocessing, training, calibration, evaluation and promotion-gate phases. Training progress is formatted as concise human-readable lines with step, epoch, loss, cross-entropy, throughput, peak VRAM and elapsed time. Detach without stopping the job with `Ctrl+A`, then `D`, and reattach later with `screen -r laya`.
 
-The training terminal prints concise human-readable progress. The JSONL file remains the machine-readable source of record. From a second local terminal, follow it live with:
-
-```bash
-ssh -i SSH_KEY -o IdentitiesOnly=yes USER@VM_IP \
-  'tail -n 20 -F /data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl'
-```
-
-For a readable rendering of the same events when `jq` is installed locally:
-
-```bash
-ssh -i SSH_KEY -o IdentitiesOnly=yes USER@VM_IP \
-  'tail -n 20 -F /data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl' \
-  | jq -r '"[train] \(.event) | step=\(.step // "-") | epoch=\(.epoch // "-") | loss=\(.loss // "-") | peak_vram=\(.peak_reserved_gib // "-") GiB | elapsed=\((.elapsed_seconds // 0) | floor)s"'
-```
+The complete original terminal stream is also recorded under `/data/laya-posttrain/logs/smoke-*.log`. The structured `/data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl` remains the audit source. After the session finishes, require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration.
 
 ## 5. Production run
 
@@ -107,12 +90,8 @@ The same output directory resumes the accepted smoke:
 
 ```bash
 cd /data/laya-posttrain/repo
-
-NEBIUS_TRAIN_APPROVED=YES \
-AUTO_SHUTDOWN=1 \
-MAX_STEPS=0 \
-MAX_WALL_SECONDS=21600 \
-scripts/nebius_run.sh
+NEBIUS_TRAIN_APPROVED=YES MAX_WALL_SECONDS=21600 scripts/nebius_screen.sh full
+screen -r laya
 ```
 
 The pipeline preprocesses once, trains four epochs, calibrates on the dedicated split, removes inherited option-bucket temperatures, verifies the checkpoint, writes `SHA256SUMS`, and powers off.

@@ -46,6 +46,7 @@ The sandbox is an in-process deterministic web abstraction with nine tasks acros
 See also the [compute strategy](docs/COMPUTE_STRATEGY.md). Phase 1 inference stays local. Nebius is reserved for explicitly authorized fine-tuning and post-training.
 For reproducible GPU campaigns, follow the fail-closed [CUDA setup](docs/CUDA_SETUP.md). The staged local-versus-Nebius decision is frozen in the [Laya post-training plan](docs/LAYA_FINETUNING_PLAN.md).
 The operational cloud procedure is the [Nebius post-training runbook](docs/NEBIUS_POSTTRAIN_RUNBOOK.md). Resource provisioning remains manual, and paid training requires explicit approval.
+Nebius training runs inside a logged `screen` session. Reattaching shows the original human-readable pipeline output while structured JSONL remains available for audit.
 Machine-specific commands are kept in [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHASE1_COMMANDS.md), outside the portable quickstart.
 
 Milestone 1 provides the reliable end-to-end loop, direct-GPT and candidate-selector controls, candidate caching, nine deterministic tasks, the real Laya adapter, storage, loop guards, token and latency telemetry, and aggregate reporting. The smoke and challenge suites validate the engineering path. Research conclusions use the held-out templates and sample sizes defined in the evaluation protocol.
