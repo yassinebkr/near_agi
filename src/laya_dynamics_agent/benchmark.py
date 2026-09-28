@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
@@ -102,6 +103,8 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     cache_path = Path("data/candidate_cache") / f"{provider}-{safe_model}{cache_suffix}.json"
     cached = CachedPlanner(generator, cache_path, prompt_version=PROMPT_VERSION)
     task_ids = SUITES[suite]
+    task_manifest = {task_id: TASKS[task_id] for task_id in task_ids}
+    task_manifest_hash = hashlib.sha256(json.dumps(task_manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     progress(f"Benchmark {campaign_id} | provider={provider} | model={resolved_model}")
     progress(f"Suite: {suite} | tasks: {len(task_ids)} | seeds: {','.join(map(str, seeds))} | Laya: {'yes' if include_laya else 'no'}")
     laya_runtime: dict[str, Any] | None = None
@@ -168,7 +171,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
         "live_provider": provider in {"openai", "openrouter"},
         "complete": not shutdown.event.is_set() and len(results) == expected_episodes,
     }
-    report = {"campaign_id": campaign_id, "suite": suite, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
+    report = {"campaign_id": campaign_id, "suite": suite, "suite_version": {"smoke": "smoke-v001", "challenge": "challenge-v001", "final": "final-v001"}[suite], "task_manifest_sha256": task_manifest_hash, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
     report["final_protocol"] = {**final_protocol, "compliant": all(final_protocol.values())}
     root = Path("reports") / campaign_id
     root.mkdir(parents=True, exist_ok=True)

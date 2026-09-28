@@ -109,6 +109,8 @@ def test_benchmark_report_has_real_direct_arm_and_aggregate(tmp_path: Path, monk
     assert report["aggregate"]["episodes"] == len(SUITES["smoke"]) * 2
     assert report["prompt_versions"] == {"direct": "direct-v001", "candidates": "planner-v001"}
     assert len(report["aggregate"]["templates"]) == 3
+    assert report["suite_version"] == "smoke-v001"
+    assert len(report["task_manifest_sha256"]) == 64
     comparison = report["aggregate"]["paired_comparisons"]["candidates_heuristic_vs_direct_gpt"]
     assert comparison["pairs"] == 3
     assert comparison["success_delta_ci95"] == [0.0, 0.0]
