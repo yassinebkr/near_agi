@@ -1,5 +1,9 @@
 # Experiment log
 
+## Final-v001 pre-registration freeze
+
+The final matrix was frozen before live execution: 90 tasks, three held-out templates, 30 instances per template, and seeds `0,1,2,3,4`. A compliant report must use a fresh cache, CUDA base Laya, a live provider, and complete all 1,350 episodes. Each report fingerprints the canonical task manifest with SHA-256. A one-seed pilot is operational validation only and is excluded from final inference.
+
 ## benchmark-795a36f9 · challenge · seed 0
 
 Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `/mnt/fast-ssd/models/laya/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped.

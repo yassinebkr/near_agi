@@ -124,6 +124,40 @@ This produces 27 episodes: nine direct-GPT episodes, nine heuristic-selector epi
 
 Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone. The smoke suite validates the experimental wiring; it is not the full statistically powered campaign.
 
+## Frozen final benchmark
+
+Run a one-seed pilot first to validate provider compatibility and estimate current cost. The report will intentionally say `NON-COMPLIANT PILOT`:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+
+LAYA_DEVICE=cuda \
+/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+  --suite final \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --seeds 0 \
+  --with-laya \
+  --fresh-candidate-cache
+```
+
+After inspecting the pilot, run the pre-registered campaign:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+
+LAYA_DEVICE=cuda \
+/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/lda benchmark \
+  --suite final \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --seeds 0,1,2,3,4 \
+  --with-laya \
+  --fresh-candidate-cache
+```
+
+The compliant campaign contains 1,350 episodes. Extrapolating from `benchmark-795a36f9`, budget approximately 75–120 minutes and about $3.4, with provider-dependent variance. The one-seed pilot contains 270 episodes and is expected to cost roughly $0.7. Do not combine pilot results with the compliant campaign.
+
 ## Terminal output
 
 The default benchmark output shows one progress line per episode and a compact final table. Complete metrics are always written to `reports/latest/metrics.json`. Use `--json` only when machine-readable terminal output is needed, and `--debug` when diagnosing an exception.

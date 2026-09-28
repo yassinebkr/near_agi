@@ -10,6 +10,12 @@ The smoke suite currently contains three deterministic tasks from three template
 
 The `challenge` suite contains all nine current tasks across eight templates. It broadens fact formats and distractors: conflicting community claims, archived values, official specifications or policies, safety-sensitive wording, and simulated irreversible actions. It is a development benchmark, not a held-out test set, because its tasks live in the repository and influence implementation.
 
+## Final-v001 frozen evaluation
+
+`final-v001` contains 90 instances across three templates absent from the development suites: `heldout-qualified-limit-v1`, `heldout-current-policy-v1`, and `heldout-security-threshold-v1`. Each template contributes exactly 30 instances. The registered seeds are `0,1,2,3,4`; OpenRouter receives each seed for direct and candidate-generation calls, although provider determinism is not assumed to be bit-exact.
+
+A compliant final report requires the `final` suite, all five registered seeds, a fresh campaign-scoped cache, base Laya enabled, a live provider, and complete execution. Reports record `final_protocol.compliant`, `suite_version`, and `task_manifest_sha256`, plus standard deviations, deterministic 95% bootstrap intervals, per-template results, and paired success and step deltas.
+
 ## Arms
 
 - `direct_gpt`: the configured GPT model chooses one action directly.

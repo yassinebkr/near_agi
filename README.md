@@ -63,6 +63,8 @@ Use `--fresh-candidate-cache` for a clean live campaign. It creates a campaign-s
 
 The CLI exposes two development suites: `smoke` keeps the original three-task wiring check, while `challenge` runs all nine tasks across eight templates with contradictory secondary sources, archived values, primary evidence, and a simulated irreversible branch. Neither suite is the held-out statistical evaluation.
 
+The frozen `final-v001` suite is separate: 90 held-out instances across three unseen templates, with 30 instances per template. A protocol-compliant campaign uses exactly seeds `0,1,2,3,4`, CUDA Laya, a live provider, and `--fresh-candidate-cache`. Reports include the suite version, a SHA-256 task-manifest fingerprint, bootstrap intervals, per-template metrics, paired arm comparisons, and an explicit compliance verdict.
+
 A clean local CUDA/OpenRouter challenge run is:
 
 ```bash
