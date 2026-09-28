@@ -137,16 +137,66 @@ def add_planner_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--model", default=None, help="Provider-specific model id; defaults come from the environment")
 
 
+def _nested_provider_message(value: Any) -> str | None:
+    if isinstance(value, str):
+        try:
+            return _nested_provider_message(json.loads(value))
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if isinstance(value, dict):
+        raw = value.get("raw")
+        nested = _nested_provider_message(raw) if raw else None
+        if nested:
+            return nested
+        for child in value.values():
+            nested = _nested_provider_message(child)
+            if nested:
+                return nested
+        message = value.get("message")
+        if isinstance(message, str) and message != "Provider returned error":
+            return message
+    if isinstance(value, list):
+        for child in value:
+            nested = _nested_provider_message(child)
+            if nested:
+                return nested
+    return None
+
+
+def concise_error(exc: Exception) -> str:
+    message = _nested_provider_message(getattr(exc, "body", None))
+    if not message:
+        message = str(exc).splitlines()[0]
+    return f"{type(exc).__name__}: {message}"
+
+
+def print_benchmark_summary(report: dict[str, Any]) -> None:
+    print("\nBenchmark complete")
+    print(f"Campaign: {report['campaign_id']}")
+    print(f"Provider: {report['provider']} | model: {report['model']}")
+    print("Mode                         Runs  Success  Steps  Unsafe  Predictor")
+    print("---------------------------  ----  -------  -----  ------  ---------")
+    for mode, metrics in report["aggregate"]["modes"].items():
+        predictor_seconds = metrics["predictor_latency_ms"] / 1000
+        print(f"{mode:<27}  {metrics['episodes']:>4}  {metrics['success_rate']:>7.1%}  {metrics['mean_steps']:>5.2f}  {metrics['unsafe_actions']:>6}  {predictor_seconds:>7.1f}s")
+    print(f"Cache: {report['cache_hits']} hits / {report['cache_misses']} misses")
+    print("Full report: reports/latest/summary.md")
+    print("Raw metrics: reports/latest/metrics.json")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="lda")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("doctor")
     demo = sub.add_parser("demo")
+    demo.add_argument("--debug", action="store_true", help="Show full tracebacks")
     add_planner_arguments(demo)
     bench = sub.add_parser("benchmark")
     bench.add_argument("--suite", default="smoke", choices=["smoke"])
     bench.add_argument("--with-laya", action="store_true")
     bench.add_argument("--seeds", default="0", help="Comma-separated deterministic seeds, e.g. 0,1,2")
+    bench.add_argument("--json", action="store_true", help="Print the complete JSON result to the terminal")
+    bench.add_argument("--debug", action="store_true", help="Show full tracebacks")
     add_planner_arguments(bench)
     args = parser.parse_args()
     if args.command == "doctor":
@@ -155,4 +205,13 @@ def main() -> None:
         result = asyncio.run(dispatch(args))
     except KeyboardInterrupt:
         raise SystemExit(130)
-    print(json.dumps(result, indent=2))
+    except Exception as exc:
+        if getattr(args, "debug", False):
+            raise
+        print(f"\nERROR: {concise_error(exc)}", file=sys.stderr)
+        print("The failed run was finalized in SQLite/JSONL. Re-run with --debug for the full traceback.", file=sys.stderr)
+        raise SystemExit(1)
+    if args.command == "benchmark" and not args.json:
+        print_benchmark_summary(result)
+    else:
+        print(json.dumps(result, indent=2))

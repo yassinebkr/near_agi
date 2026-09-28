@@ -89,3 +89,7 @@ cd /home/kwestog/Documents/code/near_agi
 The live campaign contains `direct_gpt`, `candidates_heuristic`, and `candidates_base_laya` across three tasks. Candidate responses are cached under `data/candidate_cache/`; trajectories are stored in `data/trajectories.sqlite3`, events under `logs/runs/`, and the comparative report under `reports/latest/`. Re-running an identical candidate state replays its cached response rather than spending another candidate-generation call. Direct GPT calls remain independent because they are the control arm.
 
 Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone. The smoke suite validates the experimental wiring; it is not the full statistically powered campaign.
+
+## Terminal output
+
+The default benchmark output shows one progress line per episode and a compact final table. Complete metrics are always written to `reports/latest/metrics.json`. Use `--json` only when machine-readable terminal output is needed, and `--debug` when diagnosing an exception.

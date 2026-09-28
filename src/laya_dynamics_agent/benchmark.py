@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 import uuid
+import time
+import warnings
 from pathlib import Path
 from statistics import mean, median
 from typing import Any
@@ -56,21 +58,33 @@ def _sum_usage(rows: list[dict[str, Any]]) -> dict[str, float]:
     return total
 
 
-async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str | None, shutdown: Any, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict[str, Any]:
+async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str | None, shutdown: Any, seeds: tuple[int, ...] = DEFAULT_SEEDS, progress: Any = print) -> dict[str, Any]:
     campaign_id = f"benchmark-{uuid.uuid4().hex[:8]}"
     generator, direct = _planner_pair(provider, model)
     resolved_model = getattr(generator, "model", "deterministic")
     safe_model = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(resolved_model))
     cache_path = Path("data/candidate_cache") / f"{provider}-{safe_model}.json"
     cached = CachedPlanner(generator, cache_path, prompt_version=PROMPT_VERSION)
+    progress(f"Benchmark {campaign_id} | provider={provider} | model={resolved_model}")
+    progress(f"Tasks: {len(TASKS)} | seeds: {','.join(map(str, seeds))} | Laya: {'yes' if include_laya else 'no'}")
     configs: list[tuple[str, Any, Any | None, Any]] = [
         ("direct_gpt", direct, None, GPTOnlyPolicy()),
         ("candidates_heuristic", cached, HeuristicPredictor(), GreedyUtilityPolicy()),
     ]
     if include_laya:
-        configs.append(("candidates_base_laya", cached, LayaPredictor(__import__("os").getenv("LAYA_CHECKPOINT", "laya")), GreedyUtilityPolicy()))
+        checkpoint = __import__("os").getenv("LAYA_CHECKPOINT", "laya")
+        progress(f"Loading Laya checkpoint: {checkpoint}")
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            laya_predictor = LayaPredictor(checkpoint)
+        for warning in caught_warnings:
+            first_line = str(warning.message).splitlines()[0]
+            progress(f"WARNING: {first_line}")
+        configs.append(("candidates_base_laya", cached, laya_predictor, GreedyUtilityPolicy()))
     store = TrajectoryStore(Path("data/trajectories.sqlite3"), Path("logs/runs"))
     results: list[dict[str, Any]] = []
+    total_episodes = len(seeds) * len(TASKS) * len(configs)
+    episode_number = 0
     try:
         for seed in seeds:
             cached.seed = seed
@@ -78,6 +92,9 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                 for mode, planner, predictor, policy in configs:
                     if shutdown.event.is_set():
                         break
+                    episode_number += 1
+                    progress(f"[{episode_number}/{total_episodes}] {task_id} | {mode} | seed={seed} ...")
+                    episode_started = time.perf_counter()
                     run_id = f"{campaign_id}-{mode}-{task_id}-s{seed}"
                     config = {"campaign_id": campaign_id, "mode": mode, "task_id": task_id, "template_id": TASKS[task_id]["template_id"], "seed": seed, "provider": provider, "model": getattr(planner, "model", resolved_model), "prompt_version": DIRECT_PROMPT_VERSION if mode == "direct_gpt" else PROMPT_VERSION, "candidate_count": 1 if mode == "direct_gpt" else 5, "weights": UtilityWeights().__dict__, "candidate_cache": str(cache_path)}
                     store.start_run(run_id, config)
@@ -87,9 +104,12 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                         status = "interrupted" if result["stop_reason"] == "interrupted" else "completed"
                         store.finish_run(run_id, status, result)
                         results.append(result)
+                        marker = "OK" if result["success"] else "FAIL"
+                        progress(f"    {marker} | steps={result['steps']} | stop={result['stop_reason']} | elapsed={time.perf_counter() - episode_started:.1f}s")
                     except BaseException as exc:
                         failed = {"run_id": run_id, "campaign_id": campaign_id, "mode": mode, "task_id": task_id, "seed": seed, "steps": 0, "stop_reason": "error", "error": type(exc).__name__}
                         store.finish_run(run_id, "error", failed)
+                        progress(f"    ERROR | {type(exc).__name__}: {str(exc).splitlines()[0]}")
                         raise
                 if shutdown.event.is_set():
                     break
@@ -110,4 +130,5 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     summary = "\n".join(lines) + "\n"
     (root / "summary.md").write_text(summary)
     (latest / "summary.md").write_text(summary)
+    progress(f"Report: {latest / 'summary.md'}")
     return report

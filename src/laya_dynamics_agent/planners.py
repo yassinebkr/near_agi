@@ -150,7 +150,7 @@ _DIRECT_SCHEMA = {
         "required": ["action_id", "tool", "args", "rationale_short"], "additionalProperties": False}},
     "required": ["action"], "additionalProperties": False,
 }
-_DIRECT_PROMPT = "Choose exactly one next action for the controlled research sandbox. Prefer primary evidence before answering. Use only tools and paths present in the state."
+_DIRECT_PROMPT = "Choose exactly one next action for the controlled research sandbox. Return one JSON object with an action field. Prefer primary evidence before answering. Use only tools and paths present in the state."
 
 
 class OpenAIDirectPlanner:

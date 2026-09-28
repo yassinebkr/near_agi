@@ -54,4 +54,6 @@ export OPENROUTER_MODEL=openai/gpt-5.6-sol
 uv run lda benchmark --suite smoke --provider openrouter --with-laya
 ```
 
+By default, benchmark output is a compact per-episode progress log plus a summary table; full metrics remain in `reports/latest/metrics.json`. Add `--json` for the complete terminal JSON or `--debug` for full exception tracebacks.
+
 No provider fallback is implicit. OAuth is deliberately deferred to the later Shopifast-based authentication milestone. During a run, the first `Ctrl+C` requests a graceful stop after the current atomic planner/predictor/environment operation; the partial run is finalized in SQLite and JSONL with status `interrupted`.

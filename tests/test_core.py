@@ -1,8 +1,9 @@
 import asyncio
 from pathlib import Path
 from laya_dynamics_agent.benchmark import run_benchmark_suite
+from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
 from laya_dynamics_agent.models import CandidateAction
-from laya_dynamics_agent.planners import CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
+from laya_dynamics_agent.planners import _DIRECT_PROMPT, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
 from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor
 from laya_dynamics_agent.runner_impl import run_episode
@@ -81,3 +82,21 @@ def test_benchmark_report_has_real_direct_arm_and_aggregate(tmp_path: Path, monk
     assert report["aggregate"]["episodes"] == len(TASKS) * 2
     assert report["prompt_versions"] == {"direct": "direct-v001", "candidates": "planner-v001"}
     assert (tmp_path / "reports/latest/metrics.json").exists()
+
+
+def test_direct_openrouter_prompt_explicitly_requests_json():
+    assert "json" in _DIRECT_PROMPT.lower()
+
+
+def test_concise_provider_error_extracts_nested_message():
+    class ProviderError(Exception):
+        body = {"error": {"message": "Provider returned error", "metadata": {"raw": '{"error":{"message":"messages must contain json"}}'}}}
+    assert concise_error(ProviderError("verbose fallback")) == "ProviderError: messages must contain json"
+
+
+def test_terminal_summary_is_compact(capsys):
+    report = {"campaign_id": "b-1", "provider": "deterministic", "model": "fixture", "cache_hits": 2, "cache_misses": 1, "aggregate": {"modes": {"direct_gpt": {"episodes": 3, "success_rate": 1.0, "mean_steps": 2.0, "unsafe_actions": 0, "predictor_latency_ms": 0.0}}}}
+    print_benchmark_summary(report)
+    output = capsys.readouterr().out
+    assert "Benchmark complete" in output and "100.0%" in output
+    assert "Raw metrics: reports/latest/metrics.json" in output
