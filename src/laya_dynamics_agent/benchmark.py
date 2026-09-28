@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 import uuid
 import time
 import warnings
 from pathlib import Path
-from statistics import mean, median
+from statistics import mean, median, pstdev
 from typing import Any
 
 from .planners import CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenAIDirectPlanner, OpenAIPlanner, OpenRouterDirectPlanner, OpenRouterPlanner
@@ -31,22 +32,56 @@ def _planner_pair(provider: str, model: str | None) -> tuple[Any, Any]:
     raise ValueError(f"unknown planner provider: {provider}")
 
 
+def _bootstrap_mean_ci(values: list[float], *, samples: int = 2000, seed: int = 0) -> list[float]:
+    if not values:
+        return [0.0, 0.0]
+    rng = random.Random(seed)
+    size = len(values)
+    estimates = sorted(mean(values[rng.randrange(size)] for _ in range(size)) for _ in range(samples))
+    return [estimates[int(samples * 0.025)], estimates[int(samples * 0.975)]]
+
+
+def _metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    successes = [float(row["success"]) for row in rows]
+    steps = [float(row["steps"]) for row in rows]
+    return {
+        "episodes": len(rows), "success_rate": mean(successes), "success_std": pstdev(successes),
+        "success_ci95": _bootstrap_mean_ci(successes), "mean_steps": mean(steps),
+        "median_steps": median(steps), "steps_std": pstdev(steps), "steps_ci95": _bootstrap_mean_ci(steps),
+        "unsafe_actions": sum(row["unsafe_actions"] for row in rows),
+        "unnecessary_actions": sum(row["unnecessary_actions"] for row in rows),
+        "planner_latency_ms": sum(row["planner_latency_ms"] for row in rows),
+        "predictor_latency_ms": sum(row["predictor_latency_ms"] for row in rows), "usage": _sum_usage(rows),
+    }
+
+
+def _paired_comparisons(results: list[dict[str, Any]]) -> dict[str, Any]:
+    indexed = {(row["task_id"], row["seed"], row["mode"]): row for row in results}
+    comparisons: dict[str, Any] = {}
+    pairs = (("candidates_heuristic", "direct_gpt"), ("candidates_base_laya", "direct_gpt"), ("candidates_base_laya", "candidates_heuristic"))
+    for left, right in pairs:
+        keys = sorted((task_id, seed) for task_id, seed, mode in indexed if mode == left and (task_id, seed, right) in indexed)
+        success_delta = [float(indexed[task_id, seed, left]["success"]) - float(indexed[task_id, seed, right]["success"]) for task_id, seed in keys]
+        steps_delta = [float(indexed[task_id, seed, left]["steps"]) - float(indexed[task_id, seed, right]["steps"]) for task_id, seed in keys]
+        comparisons[f"{left}_vs_{right}"] = {
+            "pairs": len(keys), "success_delta": mean(success_delta) if success_delta else 0.0,
+            "success_delta_ci95": _bootstrap_mean_ci(success_delta), "steps_delta": mean(steps_delta) if steps_delta else 0.0,
+            "steps_delta_ci95": _bootstrap_mean_ci(steps_delta),
+        }
+    return comparisons
+
+
 def _aggregate(results: list[dict[str, Any]]) -> dict[str, Any]:
     by_mode: dict[str, list[dict[str, Any]]] = {}
+    by_template: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in results:
         by_mode.setdefault(row["mode"], []).append(row)
-    modes = {}
-    for mode, rows in by_mode.items():
-        modes[mode] = {
-            "episodes": len(rows), "success_rate": mean(float(r["success"]) for r in rows),
-            "mean_steps": mean(r["steps"] for r in rows), "median_steps": median(r["steps"] for r in rows),
-            "unsafe_actions": sum(r["unsafe_actions"] for r in rows),
-            "unnecessary_actions": sum(r["unnecessary_actions"] for r in rows),
-            "planner_latency_ms": sum(r["planner_latency_ms"] for r in rows),
-            "predictor_latency_ms": sum(r["predictor_latency_ms"] for r in rows),
-            "usage": _sum_usage(rows),
-        }
-    return {"episodes": len(results), "modes": modes}
+        by_template.setdefault(row["template_id"], {}).setdefault(row["mode"], []).append(row)
+    return {
+        "episodes": len(results), "modes": {mode: _metrics(rows) for mode, rows in by_mode.items()},
+        "templates": {template: {mode: _metrics(rows) for mode, rows in modes.items()} for template, modes in by_template.items()},
+        "paired_comparisons": _paired_comparisons(results),
+    }
 
 
 def _sum_usage(rows: list[dict[str, Any]]) -> dict[str, float]:
@@ -109,7 +144,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                     store.start_run(run_id, config)
                     try:
                         result = await run_episode(run_id=run_id, task_id=task_id, environment=SandboxWebEnvironment(), planner=planner, predictor=predictor, policy=policy, store=store, max_actions=1 if mode == "direct_gpt" else 5, stop_requested=shutdown.event.is_set)
-                        result.update(run_id=run_id, campaign_id=campaign_id, mode=mode, seed=seed, provider=provider, model=config["model"], prompt_version=config["prompt_version"])
+                        result.update(run_id=run_id, campaign_id=campaign_id, mode=mode, seed=seed, template_id=config["template_id"], provider=provider, model=config["model"], prompt_version=config["prompt_version"])
                         status = "interrupted" if result["stop_reason"] == "interrupted" else "completed"
                         store.finish_run(run_id, status, result)
                         results.append(result)
@@ -133,9 +168,21 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     latest = Path("reports/latest")
     latest.mkdir(parents=True, exist_ok=True)
     (latest / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
-    lines = ["# Benchmark", "", f"Campaign: `{campaign_id}` · provider: `{provider}` · model: `{resolved_model}` · prompts: `{DIRECT_PROMPT_VERSION}` / `{PROMPT_VERSION}`", "", "| mode | episodes | success | mean steps | unsafe | unnecessary |", "|---|---:|---:|---:|---:|---:|"]
+    lines = ["# Benchmark", "", f"Campaign: `{campaign_id}` · suite: `{suite}` · provider: `{provider}` · model: `{resolved_model}` · prompts: `{DIRECT_PROMPT_VERSION}` / `{PROMPT_VERSION}`", "", "| mode | episodes | success | success 95% CI | mean steps | steps 95% CI | unsafe | unnecessary |", "|:--|--:|--:|:--|--:|:--|--:|--:|"]
     for mode, metrics in report["aggregate"]["modes"].items():
-        lines.append(f"| {mode} | {metrics['episodes']} | {metrics['success_rate']:.3f} | {metrics['mean_steps']:.2f} | {metrics['unsafe_actions']} | {metrics['unnecessary_actions']} |")
+        success_ci = metrics["success_ci95"]
+        steps_ci = metrics["steps_ci95"]
+        lines.append(f"| {mode} | {metrics['episodes']} | {metrics['success_rate']:.3f} | [{success_ci[0]:.3f}, {success_ci[1]:.3f}] | {metrics['mean_steps']:.2f} | [{steps_ci[0]:.2f}, {steps_ci[1]:.2f}] | {metrics['unsafe_actions']} | {metrics['unnecessary_actions']} |")
+    lines.extend(["", "## Per-template results"])
+    for template, modes in report["aggregate"]["templates"].items():
+        lines.extend(["", f"### `{template}`", "", "| mode | episodes | success | mean steps |", "|:--|--:|--:|--:|"])
+        for mode, metrics in modes.items():
+            lines.append(f"| {mode} | {metrics['episodes']} | {metrics['success_rate']:.3f} | {metrics['mean_steps']:.2f} |")
+    lines.extend(["", "## Paired comparisons", "", "Positive deltas mean the left-hand arm is higher.", "", "| comparison | pairs | success delta | success delta 95% CI | steps delta | steps delta 95% CI |", "|:--|--:|--:|:--|--:|:--|"])
+    for name, comparison in report["aggregate"]["paired_comparisons"].items():
+        success_ci = comparison["success_delta_ci95"]
+        steps_ci = comparison["steps_delta_ci95"]
+        lines.append(f"| {name} | {comparison['pairs']} | {comparison['success_delta']:.3f} | [{success_ci[0]:.3f}, {success_ci[1]:.3f}] | {comparison['steps_delta']:.3f} | [{steps_ci[0]:.3f}, {steps_ci[1]:.3f}] |")
     summary = "\n".join(lines) + "\n"
     (root / "summary.md").write_text(summary)
     (latest / "summary.md").write_text(summary)
