@@ -26,7 +26,7 @@ Cloud output must be copied back to `/mnt/fast-ssd/laya-dynamics-agent/` and ver
 
 First reproduce a tiny official-style training step locally. Then benchmark local native versus the verified Beyond VRAM path. Use Nebius only if local execution is impossible or its projected wall time is unreasonable. Backend choice must not change splits or evaluation criteria.
 
-## Open integration item
+## Audited integration
 
-Record the exact URL and commit of the user's Beyond VRAM repository before adapting it. Its APIs and numerical guarantees have not yet been inspected in this repository.
+BeyondVRAM was audited at commit `28d0a005b72f46b1dc360fcda1afc010f2766e14`; see `docs/BEYONDVRAM_AUDIT.md`. Reuse is limited to verified experimental and cloud-training patterns, not assumed transparent Laya training offload.
 
