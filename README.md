@@ -61,7 +61,7 @@ export OPENROUTER_MODEL=openai/gpt-5.6-sol
 uv run lda benchmark --suite smoke --provider openrouter --with-laya
 ```
 
-By default, benchmark output is a compact per-episode progress log plus a summary table. Latency telemetry separates planner wall time, fresh candidate generation, cache replay, predictor wall and reported time, policy, environment, framework overhead and complete episode wall time. Reports distinguish selector speed with candidates available from observed or reconstructed end-to-end performance. a warm cache replay is never presented alone as a cold-start speedup. Full metrics remain in `reports/latest/metrics.json`. Add `--json` for the complete terminal JSON or `--debug` for full exception tracebacks.
+By default, benchmark output is a compact per-episode progress log plus a summary table. Latency telemetry separates planner wall time, fresh candidate generation, cache replay, predictor wall and reported time, policy, environment, framework overhead and complete episode wall time. Reports distinguish selector speed with candidates available from observed or reconstructed end-to-end performance. A warm cache replay is never presented alone as a cold-start speedup. Full metrics remain in `reports/latest/metrics.json`. Add `--json` for the complete terminal JSON or `--debug` for full exception tracebacks.
 
 Use `--fresh-candidate-cache` for a clean live campaign. It creates a campaign-scoped cache, preserves previous caches, and still guarantees that the heuristic and Laya arms compare the same candidate lists inside the campaign.
 

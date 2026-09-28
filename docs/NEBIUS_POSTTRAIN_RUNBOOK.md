@@ -8,7 +8,7 @@ This procedure runs domain post-training on one preemptible NVIDIA H100. It neve
 
 - `final-v001` identifiers are rejected during generation and preprocessing.
 - Raw splits and resume checkpoints are bound to SHA-256 hashes.
-- Development templates are disjoint from training templates. calibration receives no gradient updates.
+- Development templates are disjoint from training templates. Calibration receives no gradient updates.
 - Paid training requires `NEBIUS_TRAIN_APPROVED=YES`.
 - Atomic checkpoints are written to persistent storage every 600 seconds and on graceful interruption.
 - The VM shuts down after completion, failure or interruption when `AUTO_SHUTDOWN=1`.
@@ -27,7 +27,7 @@ PYTHON_BIN=/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/python \
 python -m json.tool configs/train/v001.dataset-manifest.json
 ```
 
-The raw build contains 36,000 training, 5,400 validation, 5,400 calibration and 10,800 unseen-template development sequences. Deterministic rare-label oversampling expands only the training split to 58,800 sequences. the evaluation splits keep their natural distribution. Do not rebuild it after training begins.
+The raw build contains 36,000 training, 5,400 validation, 5,400 calibration and 10,800 unseen-template development sequences. Deterministic rare-label oversampling expands only the training split to 58,800 sequences. The evaluation splits keep their natural distribution. Do not rebuild it after training begins.
 
 ## 2. Create resources manually
 

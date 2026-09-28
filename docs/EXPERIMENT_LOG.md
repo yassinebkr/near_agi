@@ -6,7 +6,7 @@ The final matrix was frozen before live execution: 90 tasks, three held-out temp
 
 ## Historical latency limitation
 
-The campaigns below predate durable episode wall-clock and cache-provenance telemetry. Candidate-based arms shared a `CachedPlanner`, so the first selector reaching a state could pay the GPT generation latency while another selector replayed the same candidates. Their recorded `predictor time` measures predictor-internal work only. it is neither selector-path wall time nor cold-start end-to-end time.
+The campaigns below predate durable episode wall-clock and cache-provenance telemetry. Candidate-based arms shared a `CachedPlanner`, so the first selector reaching a state could pay the GPT generation latency while another selector replayed the same candidates. Their recorded `predictor time` measures predictor-internal work only. It is neither selector-path wall time nor cold-start end-to-end time.
 
 Terminal observations suggested substantial heterogeneity: some base-Laya episodes appeared two to three times slower or failed, while others appeared roughly three to six times faster than direct GPT. Those observations motivated the current instrumentation, but they cannot support a retrospective speedup distribution. Historical values remain unchanged, and no definitive end-to-end latency conclusion is drawn from them. New campaigns separately report observed wall time, fresh/replayed provenance and reconstructed effective end-to-end latency when original generation timing is complete.
 
@@ -34,7 +34,7 @@ The only behavioural difference occurred on `pressure-001`. Direct GPT and the h
 
 The extra branch explains the cache counts: the heuristic arm generated candidates for 18 canonical states. Laya reused 17 of them and created two additional entries for its divergent history. All arms completed every task without simulated unsafe actions. Absolute Laya confidence remains uncalibrated because the checkpoint temperature warning was active.
 
-The raw campaign artifacts remain local under `reports/`, `data/trajectories.sqlite3`, `data/candidate_cache/`, and `logs/runs/`. They are intentionally excluded from Git. this entry contains the stable aggregate and interpretation needed for repository auditability.
+The raw campaign artifacts remain local under `reports/`, `data/trajectories.sqlite3`, `data/candidate_cache/`, and `logs/runs/`. They are intentionally excluded from Git. This entry contains the stable aggregate and interpretation needed for repository auditability.
 
 This challenge suite is a visible development benchmark. It does not satisfy the held-out sample-size requirements in the evaluation protocol and must not be presented as evidence that the architecture improves performance.
 
