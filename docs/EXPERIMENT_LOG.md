@@ -28,6 +28,10 @@ The result is a strong fit-and-transfer signal within the synthetic generator, b
 
 The final model SHA-256 is `dca6ad280d90fdc57458328ca1939f14adf84cd5c741c074475ac7e05586b7a4`. A local evacuation verified 3,759 files against a manifest whose SHA-256 is `c13d7fde32ab115dd5fde265731eb53c94c6ad317e77301a65554dd965884df2`. The machine-specific backup location is intentionally untracked. Structured results are recorded in `configs/train/v001.result.json`. The checkpoint's `post_training` object and structured result are authoritative; its legacy `training` object was inherited from the base checkpoint and does not describe this run.
 
+A subsequent four-arm deterministic runtime smoke, `benchmark-0bb29e0f`, invalidated promotion before `final-v001` was touched. Direct and heuristic controls passed all three tasks, base Laya passed one, and fine-tuned Laya passed none. Fine-tuned prediction MAE averaged 0.4594. A schema-aligned probe without explicit noul labels also failed all three tasks, ruling out that formatting difference as the sole cause.
+
+The offline development split changed template names and entity values but reused the same synthetic action identifiers, paths and phase structure as training. The model could therefore obtain perfect offline scores from shortcuts that do not exist in runtime benchmark actions. The result is reclassified as `runtime_transfer_gate_failed`; the checkpoint is archived as a negative result and is forbidden from the single-use final campaign. Future training data must randomize action identifiers and paths, diversify state/action phrasing, and pass runtime smoke plus challenge before final promotion.
+
 ## benchmark-795a36f9 · challenge · seed 0
 
 Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `<local-checkpoint>/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped.

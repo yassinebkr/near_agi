@@ -35,9 +35,9 @@ The 2026-09-28 console check found that L40S capacity was available only as a tw
 
 ## Current post-training status
 
-The frozen Nebius recipe completed on 2026-09-28 and passed the development promotion gate. Fine-tuned candidate-selection accuracy increased from 43.06% to 100% on 360 groups from unseen development templates, with zero unsafe selections and a 99.995% reduction in transition mean absolute error. This establishes development transfer within the synthetic environment and unlocks the frozen final evaluation. It does not establish final task success or general computer-use reliability.
+The frozen Nebius recipe completed on 2026-09-28 and passed its offline development gate, increasing candidate-selection accuracy from 43.06% to 100% on 360 synthetic groups. A later runtime smoke exposed that this gate was insufficient: the fine-tuned checkpoint failed all three ordinary benchmark tasks while the direct and heuristic controls passed all three. The development generator had changed template names and values but retained training action identifiers, paths and phase structure, allowing shortcut learning.
 
-The next step is the single registered base-versus-fine-tuned `final-v001` comparison with cache-aware latency telemetry. No training change or additional tuning may use final-suite outcomes.
+The checkpoint is therefore classified `runtime_transfer_gate_failed` and must not enter `final-v001`. The final four-arm benchmark implementation is ready, but the frozen suite remains untouched. A replacement training dataset must randomize action identifiers and paths, diversify state and action wording, and pass both runtime smoke and challenge before the single registered final comparison.
 
 ## Dataset contract
 
