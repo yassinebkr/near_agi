@@ -122,8 +122,14 @@ def _effective_latency(row: dict[str, Any]) -> float | None:
 def _paired_comparisons(results: list[dict[str, Any]]) -> dict[str, Any]:
     indexed = {(row["task_id"], row["seed"], row["mode"]): row for row in results}
     comparisons: dict[str, Any] = {}
-    pairs = (("candidates_heuristic", "direct_gpt"), ("candidates_base_laya", "direct_gpt"),
-             ("candidates_base_laya", "candidates_heuristic"))
+    pairs = (
+        ("candidates_heuristic", "direct_gpt"),
+        ("candidates_base_laya", "direct_gpt"),
+        ("candidates_base_laya", "candidates_heuristic"),
+        ("candidates_finetuned_laya", "direct_gpt"),
+        ("candidates_finetuned_laya", "candidates_heuristic"),
+        ("candidates_finetuned_laya", "candidates_base_laya"),
+    )
     for left, right in pairs:
         keys = sorted((task_id, seed) for task_id, seed, mode in indexed
                       if mode == left and (task_id, seed, right) in indexed)
@@ -195,7 +201,11 @@ def _sum_usage(rows: list[dict[str, Any]]) -> dict[str, float]:
     return total
 
 
-async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str | None, shutdown: Any, seeds: tuple[int, ...] = DEFAULT_SEEDS, progress: Any = print, fresh_candidate_cache: bool = False, suite: str = "smoke") -> dict[str, Any]:
+async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str | None, shutdown: Any,
+                              seeds: tuple[int, ...] = DEFAULT_SEEDS, progress: Any = print,
+                              fresh_candidate_cache: bool = False, suite: str = "smoke",
+                              base_laya_checkpoint: str | None = None,
+                              finetuned_laya_checkpoint: str | None = None) -> dict[str, Any]:
     campaign_id = f"benchmark-{uuid.uuid4().hex[:8]}"
     generator, direct = _planner_pair(provider, model)
     resolved_model = getattr(generator, "model", "deterministic")
@@ -207,24 +217,33 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     task_manifest = {task_id: TASKS[task_id] for task_id in task_ids}
     task_manifest_hash = hashlib.sha256(json.dumps(task_manifest, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     progress(f"Benchmark {campaign_id} | provider={provider} | model={resolved_model}")
-    progress(f"Suite: {suite} | tasks: {len(task_ids)} | seeds: {','.join(map(str, seeds))} | Laya: {'yes' if include_laya else 'no'}")
-    laya_runtime: dict[str, Any] | None = None
+    laya_arms = int(include_laya) + int(finetuned_laya_checkpoint is not None)
+    progress(f"Suite: {suite} | tasks: {len(task_ids)} | seeds: {','.join(map(str, seeds))} | Laya arms: {laya_arms}")
+    laya_runtimes: dict[str, dict[str, Any]] = {}
     configs: list[tuple[str, Any, Any | None, Any]] = [
         ("direct_gpt", direct, None, GPTOnlyPolicy()),
         ("candidates_heuristic", cached, HeuristicPredictor(), GreedyUtilityPolicy()),
     ]
-    if include_laya:
-        checkpoint = __import__("os").getenv("LAYA_CHECKPOINT", "laya")
-        progress(f"Loading Laya checkpoint: {checkpoint}")
+
+    def add_laya_arm(mode: str, checkpoint: str) -> None:
+        progress(f"Loading {mode}: {checkpoint}")
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")
-            laya_predictor = LayaPredictor(checkpoint)
+            predictor = LayaPredictor(checkpoint)
         for warning in caught_warnings:
-            first_line = str(warning.message).splitlines()[0]
-            progress(f"WARNING: {first_line}")
-        laya_runtime = {"checkpoint": checkpoint, "device": laya_predictor.device, "load_time_ms": laya_predictor.load_time_ms}
-        progress(f"Laya device: {laya_predictor.device} | load={laya_predictor.load_time_ms / 1000:.1f}s")
-        configs.append(("candidates_base_laya", cached, laya_predictor, GreedyUtilityPolicy()))
+            progress(f"WARNING [{mode}]: {str(warning.message).splitlines()[0]}")
+        runtime = {"checkpoint": checkpoint, "device": predictor.device,
+                   "load_time_ms": predictor.load_time_ms}
+        laya_runtimes[mode] = runtime
+        progress(f"{mode} device: {predictor.device} | load={predictor.load_time_ms / 1000:.1f}s")
+        configs.append((mode, cached, predictor, GreedyUtilityPolicy()))
+
+    if include_laya:
+        checkpoint = base_laya_checkpoint or __import__("os").getenv("LAYA_CHECKPOINT", "laya")
+        add_laya_arm("candidates_base_laya", checkpoint)
+    if finetuned_laya_checkpoint is not None:
+        add_laya_arm("candidates_finetuned_laya", finetuned_laya_checkpoint)
+    laya_runtime = laya_runtimes.get("candidates_base_laya")
     store = TrajectoryStore(Path("data/trajectories.sqlite3"), Path("logs/runs"))
     results: list[dict[str, Any]] = []
     total_episodes = len(seeds) * len(task_ids) * len(configs)
@@ -244,7 +263,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                     progress(f"[{episode_number}/{total_episodes}] {task_id} | {mode} | seed={seed} ...")
                     episode_started = time.perf_counter()
                     run_id = f"{campaign_id}-{mode}-{task_id}-s{seed}"
-                    config = {"campaign_id": campaign_id, "mode": mode, "task_id": task_id, "template_id": TASKS[task_id]["template_id"], "seed": seed, "provider": provider, "model": getattr(planner, "model", resolved_model), "prompt_version": DIRECT_PROMPT_VERSION if mode == "direct_gpt" else PROMPT_VERSION, "labeler_version": LABELER_VERSION, "laya_runtime": laya_runtime, "candidate_count": 1 if mode == "direct_gpt" else 5, "weights": UtilityWeights().__dict__, "candidate_cache": str(cache_path)}
+                    config = {"campaign_id": campaign_id, "mode": mode, "task_id": task_id, "template_id": TASKS[task_id]["template_id"], "seed": seed, "provider": provider, "model": getattr(planner, "model", resolved_model), "prompt_version": DIRECT_PROMPT_VERSION if mode == "direct_gpt" else PROMPT_VERSION, "labeler_version": LABELER_VERSION, "laya_runtime": laya_runtimes.get(mode), "candidate_count": 1 if mode == "direct_gpt" else 5, "weights": UtilityWeights().__dict__, "candidate_cache": str(cache_path)}
                     store.start_run(run_id, config)
                     try:
                         result = await run_episode(run_id=run_id, task_id=task_id, environment=SandboxWebEnvironment(), planner=planner, predictor=predictor, policy=policy, store=store, max_actions=1 if mode == "direct_gpt" else 5, stop_requested=shutdown.event.is_set)
@@ -268,11 +287,13 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     expected_episodes = len(task_ids) * len(seeds) * len(configs)
     final_protocol = {
         "heldout_suite": suite == "final", "declared_seeds": list(seeds) == [0, 1, 2, 3, 4],
-        "fresh_candidate_cache": fresh_candidate_cache, "laya_enabled": include_laya,
+        "fresh_candidate_cache": fresh_candidate_cache,
+        "base_laya_enabled": "candidates_base_laya" in laya_runtimes,
+        "finetuned_laya_enabled": "candidates_finetuned_laya" in laya_runtimes,
         "live_provider": provider in {"openai", "openrouter"},
         "complete": not shutdown.event.is_set() and len(results) == expected_episodes,
     }
-    report = {"campaign_id": campaign_id, "suite": suite, "suite_version": {"smoke": "smoke-v001", "challenge": "challenge-v001", "final": "final-v001"}[suite], "task_manifest_sha256": task_manifest_hash, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
+    report = {"campaign_id": campaign_id, "suite": suite, "suite_version": {"smoke": "smoke-v001", "challenge": "challenge-v001", "final": "final-v001"}[suite], "task_manifest_sha256": task_manifest_hash, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "laya_runtimes": laya_runtimes, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
     report["final_protocol"] = {**final_protocol, "compliant": all(final_protocol.values())}
     root = Path("reports") / campaign_id
     root.mkdir(parents=True, exist_ok=True)
@@ -310,12 +331,13 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
         lines.append(f"| {name} | {comparison['pairs']} | {comparison['pairs_both_success']} | "
                      f"{delta_text} | {ratio_text} | {ratio_ci_text} | "
                      f"{effective['pairs_complete']} | {effective_ratio_text} |")
-    laya_comparison = report["aggregate"]["paired_comparisons"].get("candidates_base_laya_vs_direct_gpt")
-    if laya_comparison:
-        effective = laya_comparison["effective_end_to_end"]
-        lines.extend(["", "### Laya versus direct latency-ratio distribution", "",
-                      "Observed warm/cold mix: `" + json.dumps(laya_comparison["latency_ratio_distribution"], sort_keys=True) + "`", "",
-                      "Reconstructed end-to-end (complete provenance only): `" + json.dumps(effective["latency_ratio_distribution"], sort_keys=True) + "`"])
+    for mode in ("candidates_base_laya", "candidates_finetuned_laya"):
+        laya_comparison = report["aggregate"]["paired_comparisons"].get(f"{mode}_vs_direct_gpt")
+        if laya_comparison and laya_comparison["pairs"]:
+            effective = laya_comparison["effective_end_to_end"]
+            lines.extend(["", f"### {mode} versus direct latency-ratio distribution", "",
+                          "Observed warm/cold mix: `" + json.dumps(laya_comparison["latency_ratio_distribution"], sort_keys=True) + "`", "",
+                          "Reconstructed end-to-end (complete provenance only): `" + json.dumps(effective["latency_ratio_distribution"], sort_keys=True) + "`"])
     summary = "\n".join(lines) + "\n"
     (root / "summary.md").write_text(summary)
     (latest / "summary.md").write_text(summary)

@@ -130,6 +130,47 @@ def test_benchmark_report_has_real_direct_arm_and_aggregate(tmp_path: Path, monk
     assert (tmp_path / "reports/latest/metrics.json").exists()
 
 
+def test_benchmark_supports_base_and_finetuned_laya_arms(tmp_path: Path, monkeypatch):
+    class Event:
+        @staticmethod
+        def is_set():
+            return False
+
+    class Shutdown:
+        event = Event()
+
+    class FakeLayaPredictor:
+        def __init__(self, checkpoint):
+            self.checkpoint = checkpoint
+            self.device = "cuda"
+            self.load_time_ms = 1.0
+            self.delegate = HeuristicPredictor()
+
+        def predict(self, state, actions):
+            return self.delegate.predict(state, actions)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("laya_dynamics_agent.benchmark.LayaPredictor", FakeLayaPredictor)
+    report = asyncio.run(run_benchmark_suite(
+        include_laya=True, provider="deterministic", model=None, shutdown=Shutdown(), seeds=(0,),
+        base_laya_checkpoint="base", finetuned_laya_checkpoint="fine", progress=lambda _: None,
+    ))
+
+    assert set(report["aggregate"]["modes"]) == {
+        "direct_gpt", "candidates_heuristic", "candidates_base_laya",
+        "candidates_finetuned_laya",
+    }
+    assert report["laya_runtimes"]["candidates_base_laya"]["checkpoint"] == "base"
+    assert report["laya_runtimes"]["candidates_finetuned_laya"]["checkpoint"] == "fine"
+    comparison = report["aggregate"]["paired_comparisons"][
+        "candidates_finetuned_laya_vs_candidates_base_laya"
+    ]
+    assert comparison["pairs"] == len(SUITES["smoke"])
+    assert report["final_protocol"]["base_laya_enabled"] is True
+    assert report["final_protocol"]["finetuned_laya_enabled"] is True
+    assert report["final_protocol"]["compliant"] is False
+
+
 def test_fresh_candidate_cache_is_campaign_scoped(tmp_path: Path, monkeypatch):
     class Event:
         def is_set(self):

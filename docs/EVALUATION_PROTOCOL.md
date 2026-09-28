@@ -14,14 +14,16 @@ The `challenge` suite contains all nine current tasks across eight templates. It
 
 `final-v001` contains 90 instances across three templates absent from the development suites: `heldout-qualified-limit-v1`, `heldout-current-policy-v1`, and `heldout-security-threshold-v1`. Each template contributes exactly 30 instances. The registered seeds are `0,1,2,3,4`. OpenRouter receives each seed for direct and candidate-generation calls, although provider determinism is not assumed to be bit-exact.
 
-A compliant final report requires the `final` suite, all five registered seeds, a fresh campaign-scoped cache, base Laya enabled, a live provider, and complete execution. Reports record `final_protocol.compliant`, `suite_version`, and `task_manifest_sha256`, plus standard deviations, deterministic 95% bootstrap intervals, per-template results, and paired success and step deltas.
+A compliant final report requires the `final` suite, all five registered seeds, a fresh campaign-scoped cache, both base and fine-tuned Laya enabled, a live provider, and complete execution. Reports record `final_protocol.compliant`, `suite_version`, and `task_manifest_sha256`, plus standard deviations, deterministic 95% bootstrap intervals, per-template results, and paired success and step deltas.
+
+Before the single-use final campaign, a fine-tuned checkpoint must pass both the deterministic runtime smoke and visible challenge suites through the same `LayaPredictor` API used by final evaluation. Offline tensor-level development scores alone cannot promote a checkpoint. Runtime failure closes the gate without exposing final-v001.
 
 ## Arms
 
 - `direct_gpt`: the configured GPT model chooses one action directly.
 - `candidates_heuristic`: the configured GPT model generates candidates. A transparent heuristic scores them.
 - `candidates_base_laya`: the same cached candidates are scored by the unmodified local Laya checkpoint.
-- A future `candidates_finetuned_laya` arm is admitted only after Milestone 2.
+- `candidates_finetuned_laya`: the same cached candidates are scored by the promoted `laya-dynamics-v001` checkpoint.
 
 The deterministic provider supplies offline stand-ins for wiring tests and must never be reported as GPT or Laya performance.
 

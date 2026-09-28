@@ -68,7 +68,24 @@ Use `--fresh-candidate-cache` for a clean live campaign. It creates a campaign-s
 
 The CLI exposes two development suites: `smoke` keeps the original three-task wiring check, while `challenge` runs all nine tasks across eight templates with contradictory secondary sources, archived values, primary evidence, and a simulated irreversible branch. Held-out statistical evaluation uses the frozen `final-v001` suite.
 
-The frozen `final-v001` suite is separate: 90 held-out instances across three unseen templates, with 30 instances per template. A protocol-compliant campaign uses exactly seeds `0,1,2,3,4`, CUDA Laya, a live provider, and `--fresh-candidate-cache`. Reports include the suite version, a SHA-256 task-manifest fingerprint, bootstrap intervals, per-template metrics, paired arm comparisons, and an explicit compliance verdict.
+The frozen `final-v001` suite is separate: 90 held-out instances across three unseen templates, with 30 instances per template. A protocol-compliant campaign uses exactly seeds `0,1,2,3,4`, explicit base and fine-tuned Laya checkpoints, CUDA, a live provider, and `--fresh-candidate-cache`. The four arms share one campaign-scoped candidate cache. Reports include the suite version, a SHA-256 task-manifest fingerprint, bootstrap intervals, per-template metrics, paired arm comparisons, and an explicit compliance verdict.
+
+
+After a checkpoint passes both runtime gates, the four-arm final command shape is:
+
+```bash
+LAYA_DEVICE=cuda \
+uv run lda benchmark \
+  --suite final \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --seeds 0,1,2,3,4 \
+  --base-laya-checkpoint /path/to/base-english \
+  --finetuned-laya-checkpoint /path/to/laya-dynamics-v001 \
+  --fresh-candidate-cache
+```
+
+Run a deterministic smoke with both checkpoints before this single-use final campaign.
 
 A clean local CUDA/OpenRouter challenge run is:
 
