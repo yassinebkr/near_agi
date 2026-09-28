@@ -33,6 +33,12 @@ BeyondVRAM remains the operations reference, not the Laya trainer. Its historica
 
 The 2026-09-28 console check found that L40S capacity was available only as a two-GPU allocation. A single H100 was quoted at $2.16 per hour, $0.10 less per hour than the two-L40S allocation, so H100 is the selected target. With a remaining $20 balance, the hard compute budget stays at $16. A six-hour execution cap costs at most $12.96 before tax and leaves $3.04 for bootstrap time and variance.
 
+## Current post-training status
+
+The frozen Nebius recipe completed on 2026-09-28 and passed the development promotion gate. Fine-tuned candidate-selection accuracy increased from 43.06% to 100% on 360 groups from unseen development templates, with zero unsafe selections and a 99.995% reduction in transition mean absolute error. This establishes development transfer within the synthetic environment and unlocks the frozen final evaluation. It does not establish final task success or general computer-use reliability.
+
+The next step is the single registered base-versus-fine-tuned `final-v001` comparison with cache-aware latency telemetry. No training change or additional tuning may use final-suite outcomes.
+
 ## Dataset contract
 
 Build examples from candidate transitions, not from final-v001. Each item freezes the compact pre-action state, one candidate action, the six deterministic transition labels, template identifier, task identifier, state hash, action hash, labeler version and provenance.

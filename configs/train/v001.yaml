@@ -1,5 +1,5 @@
 schema_version: "1.0"
-status: planned
+status: development_gate_passed
 base_checkpoint: null
 base_revision: 55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851
 seed: 20260928
@@ -7,6 +7,7 @@ split_strategy: template_disjoint
 calibration_split: calibration
 final_suite: final-v001
 final_suite_training_access: forbidden
+result_record: configs/train/v001.result.json
 question_target: 30000-60000
 dataset:
   raw_manifest: configs/train/v001.dataset-manifest.json
