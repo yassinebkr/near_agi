@@ -31,7 +31,7 @@ The v2 raw build contains 54,000 training, 9,000 validation, 9,000 calibration a
 
 ## 2. Create resources manually
 
-Check the live Nebius price immediately before creation. Create one preemptible H100 in `eu-north1`, an Ubuntu 24.04 NVIDIA image, and a 100 GiB persistent network SSD mounted at `/data`.
+Check the live Nebius price immediately before creation. Create one preemptible H100 in `eu-north1` with an Ubuntu 24.04 NVIDIA image and a persistent 100 GiB system disk. This setup keeps the system disk after compute shutdown; create `/data/laya-posttrain` on that filesystem. A separate network disk is optional, not required.
 
 The compute ceiling is $16 before tax. The console quote recorded on 2026-09-28 is $2.16 per hour for one H100. The configured six-hour maximum costs $12.96 and leaves $3.04 for bootstrap time and variance. Nebius billing is authoritative.
 

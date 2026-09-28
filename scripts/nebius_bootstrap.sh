@@ -5,10 +5,10 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 workspace=${NEBIUS_WORKSPACE:-/data/laya-posttrain}
 venv="$workspace/venv"
 
-test -d /data || { echo "/data persistent disk is not mounted" >&2; exit 2; }
-if ! command -v screen >/dev/null 2>&1 || ! command -v rsync >/dev/null 2>&1; then
+test -d /data || { echo "/data workspace root is missing" >&2; exit 2; }
+if ! command -v screen >/dev/null 2>&1 || ! command -v rsync >/dev/null 2>&1 || ! dpkg -s python3-venv >/dev/null 2>&1; then
   sudo apt-get update
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y screen rsync
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y screen rsync python3-venv
 fi
 mkdir -p "$workspace/checkpoints" "$workspace/data"
 python3 -m venv "$venv"
