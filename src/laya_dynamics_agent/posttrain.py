@@ -26,6 +26,29 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
     os.replace(tmp, path)
 
 
+def _format_train_event(row: dict[str, Any]) -> str:
+    event = row["event"]
+    elapsed = float(row.get("elapsed_seconds", 0.0))
+    if event == "start":
+        state = "resuming" if row.get("resumed") else "starting"
+        return (f"[train] {state} | items={row['items']} | epochs={row['epochs']} | "
+                f"micro_batch={row['micro_batch']} | accumulation={row['gradient_accumulation']}")
+    if event == "progress":
+        return (f"[train] step={row['step']} | epoch={row['epoch']} | loss={row['loss']:.6f} | "
+                f"ce={row['ce_loss']:.6f} | {row['tokens_per_second']:.1f} tok/s | "
+                f"peak_vram={row['peak_reserved_gib']:.2f} GiB | elapsed={elapsed:.1f}s")
+    if event == "paused":
+        return (f"[train] paused | reason={row['reason']} | step={row['step']} | "
+                f"epoch={row['epoch'] + 1} | elapsed={elapsed:.1f}s")
+    if event == "epoch":
+        return (f"[train] epoch={row['epoch']} complete | step={row['step']} | "
+                f"average_loss={row['average_loss']:.6f} | elapsed={elapsed:.1f}s")
+    if event == "complete":
+        return (f"[train] complete | steps={row['step']} | tokens={row['tokens']} | "
+                f"peak_vram={row['peak_reserved_gib']:.2f} GiB | elapsed={elapsed:.1f}s")
+    return f"[train] {event} | elapsed={elapsed:.1f}s"
+
+
 def verify_dataset(dataset_dir: Path) -> dict[str, Any]:
     manifest_path = dataset_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -219,7 +242,7 @@ def train(items_path: Path, base: Path, output: Path, *, epochs: int, micro_batc
         row = {"event": event, "time": time.time(), "elapsed_seconds": time.monotonic() - started, **values}
         with log_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row, sort_keys=True) + "\n")
-        print(json.dumps(row, sort_keys=True), flush=True)
+        print(_format_train_event(row), flush=True)
     log("start", items=len(items), epochs=epochs, micro_batch=micro_batch,
         gradient_accumulation=gradient_accumulation, resumed=checkpoint.exists(), data_sha256=data_sha)
     optimizer.zero_grad(set_to_none=True)
@@ -274,7 +297,7 @@ def train(items_path: Path, base: Path, output: Path, *, epochs: int, micro_batc
                 if checkpoint_due or stop["requested"] or timed_out or step_limited:
                     save_resume(epoch, offset + micro_batch)
                     last_checkpoint = now
-                if step % 20 == 0:
+                if step <= 3 or step % 20 == 0:
                     log("progress", epoch=epoch + 1, step=step, loss=float(loss * gradient_accumulation),
                         ce_loss=float(ce_loss), tokens_per_second=tokens / max(.001, now - started),
                         peak_reserved_gib=torch.cuda.max_memory_reserved() / 2**30)

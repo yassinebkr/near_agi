@@ -43,6 +43,8 @@ From the local machine:
 scripts/nebius_stage.sh ubuntu@VM_IP
 ```
 
+`nebius_stage.sh` uses `rsync`; install it on both endpoints if either machine lacks it. Configure the SSH key in `~/.ssh/config` or load it into `ssh-agent` before staging.
+
 On the VM:
 
 ```bash
@@ -69,6 +71,21 @@ scripts/nebius_run.sh
 ```
 
 Inspect `/data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl`. Require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration.
+
+The training terminal prints concise human-readable progress. The JSONL file remains the machine-readable source of record. From a second local terminal, follow it live with:
+
+```bash
+ssh -i SSH_KEY -o IdentitiesOnly=yes USER@VM_IP \
+  'tail -n 20 -F /data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl'
+```
+
+For a readable rendering of the same events when `jq` is installed locally:
+
+```bash
+ssh -i SSH_KEY -o IdentitiesOnly=yes USER@VM_IP \
+  'tail -n 20 -F /data/laya-posttrain/checkpoints/laya-dynamics-v001/train-log.jsonl' \
+  | jq -r '"[train] \(.event) | step=\(.step // "-") | epoch=\(.epoch // "-") | loss=\(.loss // "-") | peak_vram=\(.peak_reserved_gib // "-") GiB | elapsed=\((.elapsed_seconds // 0) | floor)s"'
+```
 
 ## 5. Production run
 

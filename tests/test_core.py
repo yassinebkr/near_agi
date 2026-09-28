@@ -10,7 +10,7 @@ from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, re
 from laya_dynamics_agent.runner_impl import run_episode
 from laya_dynamics_agent.sandbox import SUITES, SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
-from laya_dynamics_agent.posttrain import _training_repetitions, promotion_gate, verify_dataset
+from laya_dynamics_agent.posttrain import _format_train_event, _training_repetitions, promotion_gate, verify_dataset
 from laya_dynamics_agent.training_data import DEFAULT_SPLIT_SIZES, PROPERTIES, build_dataset
 
 def test_state_hash_is_stable():
@@ -274,6 +274,16 @@ def test_posttraining_rare_label_balancing_is_train_only_policy():
     assert _training_repetitions("risk", [0.0, 1.0]) == 4
     assert _training_repetitions("reversible", [1.0, 0.0]) == 4
     assert _training_repetitions("needs_more_observation", [1.0, 0.0]) == 2
+
+
+def test_posttraining_console_log_is_human_readable():
+    row = {"event": "progress", "elapsed_seconds": 12.3, "epoch": 1, "step": 3,
+           "loss": .125, "ce_loss": .25, "tokens_per_second": 456.7,
+           "peak_reserved_gib": 21.5}
+    assert _format_train_event(row) == (
+        "[train] step=3 | epoch=1 | loss=0.125000 | ce=0.250000 | "
+        "456.7 tok/s | peak_vram=21.50 GiB | elapsed=12.3s"
+    )
 
 
 def test_posttraining_promotion_gate_is_fail_closed(tmp_path: Path):
