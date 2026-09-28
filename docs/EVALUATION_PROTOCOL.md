@@ -1,8 +1,28 @@
 # Evaluation protocol (pre-registered draft)
 
-Compare paired runs using identical task instances, seeds, candidate limits, and planner versions. Primary comparison: GPT-only versus GPT candidates plus fine-tuned Laya. Controls: heuristic policy, base Laya zero-shot, and sandbox oracle. Splits are grouped by task/site/template into train, validation, calibration, and untouched test.
+## Experimental contract
 
-The specialised model is interesting only if test task success is no worse than GPT-only, unnecessary actions decrease, API tokens do not materially increase, added decision latency stays below 20% of GPT latency, and fine-tuned Laya beats base Laya on both transition prediction and task outcomes. This rule is fixed before training; confidence intervals and raw results accompany every conclusion. At least 30 task instances per held-out template and 5 seeds are required for claims.
+The primary live comparison uses one exact model id for both GPT arms: direct GPT action selection versus GPT candidate generation followed by a local transition selector. Candidate lists are cached by provider/model, prompt version, seed, candidate limit, and canonical state hash. Therefore heuristic and Laya selectors receive byte-equivalent candidates whenever they reach the same state. A direct GPT action is generated independently and is not mislabeled as “the first candidate”.
 
-Report task success, mean/median steps, unnecessary actions, loops, tool failures, simulated unsafe actions, token/cost, component latency, peak RAM/VRAM, plus accuracy/balanced accuracy/Brier/log loss/ECE and reliability plots where outputs are calibrated probabilities. Ablate history, beliefs, information gain, risk, Laya, zero-shot/fine-tuned, 1/3/5/8 candidates, and raw versus structured formatting.
+The smoke suite currently contains three deterministic tasks from three templates. It validates plumbing only. It cannot support a research claim. A claim requires untouched template-level test splits, at least 30 task instances per held-out template, and 5 declared seeds. Live model nondeterminism remains possible even when a replicate is labelled by a seed; cached responses make replay exact.
 
+## Arms
+
+- `direct_gpt`: the configured GPT model chooses one action directly.
+- `candidates_heuristic`: the configured GPT model generates candidates; a transparent heuristic scores them.
+- `candidates_base_laya`: the same cached candidates are scored by the unmodified local Laya checkpoint.
+- A future `candidates_finetuned_laya` arm is admitted only after Milestone 2.
+
+The deterministic provider supplies offline stand-ins for wiring tests and must never be reported as GPT or Laya performance.
+
+## Frozen metadata and measurements
+
+Every episode records campaign/run/task/template identifiers, seed, provider, exact model, direct or candidate prompt version, candidate count, policy weights, candidate-cache path, chosen actions, stop reason, planner usage, planner latency, predictor latency, unsafe actions, unnecessary actions, prediction error, and reconstructable transitions in SQLite plus JSONL.
+
+Report task success, mean/median steps, unnecessary actions, loops, tool failures, simulated unsafe actions, token/cost fields returned by the provider, component latency, and prediction MAE. For a full held-out campaign add mean/median/std and bootstrap confidence intervals, peak RAM/VRAM, balanced accuracy, Brier score, log loss, ECE, and reliability plots where outputs are calibrated probabilities.
+
+## Decision rule
+
+The specialised model is interesting only if held-out task success is no worse than `direct_gpt`, unnecessary actions decrease, API tokens do not materially increase, added decision latency stays below 20% of GPT latency, and fine-tuned Laya beats base Laya on both transition prediction and task outcomes. Raw results and confidence intervals accompany every conclusion. This rule is fixed before training.
+
+Ablations cover history, beliefs, information gain, risk, base versus fine-tuned Laya, 1/3/5/8 candidates, raw versus structured formatting, and a cheaper GPT model versus the main `openai/gpt-5.6-sol` campaign.

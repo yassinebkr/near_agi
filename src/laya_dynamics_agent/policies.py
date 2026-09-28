@@ -26,6 +26,7 @@ class GreedyUtilityPolicy:
 
 
 class GPTOnlyPolicy:
+    """Legacy ordered-candidate control; not a direct GPT baseline."""
     def select(self, state: AgentState, actions: list[CandidateAction], predictions: dict[str, TransitionPrediction]) -> CandidateAction:
         return actions[0]
 
@@ -37,6 +38,6 @@ class RandomPolicy:
 
 class OraclePolicy:
     def select(self, state: AgentState, actions: list[CandidateAction], predictions: dict[str, TransitionPrediction]) -> CandidateAction:
-        desired = "answer-15" if not state.unknowns else "manufacturer"
+        desired = "answer-primary" if not state.unknowns else "primary"
         return next((a for a in actions if a.action_id == desired), actions[0])
 

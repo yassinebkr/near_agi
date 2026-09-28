@@ -17,6 +17,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from .benchmark import run_benchmark_suite
 from .planners import DeterministicPlanner, OpenAIPlanner, OpenRouterPlanner
 from .policies import GPTOnlyPolicy, GreedyUtilityPolicy, UtilityWeights
 from .predictors import HeuristicPredictor, LayaPredictor
@@ -117,21 +118,6 @@ async def execute(mode: str, *, planner_provider: str = "deterministic", model: 
     return result
 
 
-async def benchmark(include_laya: bool, *, planner_provider: str, model: str | None, shutdown: GracefulShutdown) -> list[dict[str, Any]]:
-    results = []
-    for mode in ["gpt_only", "heuristic"] + (["base_laya"] if include_laya else []):
-        if shutdown.event.is_set():
-            break
-        results.append(await execute(mode, planner_provider=planner_provider, model=model, report=True, shutdown=shutdown))
-    root = Path("reports/latest")
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "metrics.json").write_text(json.dumps(results, indent=2) + "\n")
-    interrupted = shutdown.event.is_set()
-    lines = ["# Benchmark", "", f"Planner provider: `{planner_provider}`. Interrupted: `{interrupted}`.", "", "| mode | success | steps | stop |", "|---|---:|---:|---|"] + [f"| {r['mode']} | {r['success']} | {r['steps']} | {r['stop_reason']} |" for r in results]
-    (root / "summary.md").write_text("\n".join(lines) + "\n")
-    return results
-
-
 async def dispatch(args: argparse.Namespace) -> Any:
     shutdown = GracefulShutdown()
     loop = asyncio.get_running_loop()
@@ -142,7 +128,8 @@ async def dispatch(args: argparse.Namespace) -> Any:
         pass
     if args.command == "demo":
         return await execute("heuristic", planner_provider=args.provider, model=args.model, shutdown=shutdown)
-    return await benchmark(args.with_laya, planner_provider=args.provider, model=args.model, shutdown=shutdown)
+    seeds = tuple(int(value.strip()) for value in args.seeds.split(",") if value.strip())
+    return await run_benchmark_suite(include_laya=args.with_laya, provider=args.provider, model=args.model, shutdown=shutdown, seeds=seeds)
 
 
 def add_planner_arguments(parser: argparse.ArgumentParser) -> None:
@@ -159,6 +146,7 @@ def main() -> None:
     bench = sub.add_parser("benchmark")
     bench.add_argument("--suite", default="smoke", choices=["smoke"])
     bench.add_argument("--with-laya", action="store_true")
+    bench.add_argument("--seeds", default="0", help="Comma-separated deterministic seeds, e.g. 0,1,2")
     add_planner_arguments(bench)
     args = parser.parse_args()
     if args.command == "doctor":

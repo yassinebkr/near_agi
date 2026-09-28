@@ -31,18 +31,61 @@ The last command is a deterministic engineering smoke test. It validates the loc
 
 
 
-## OpenRouter with GPT-5.6 Sol
+## Configure `.env`
+
+Copy the template once and edit only the local `.env` file; it is ignored by Git:
 
 ```bash
-export OPENROUTER_API_KEY=sk-or-v1-...
-export OPENROUTER_MODEL=openai/gpt-5.6-sol
-export LAYA_CHECKPOINT=/mnt/fast-ssd/models/laya/base-english
+cd /home/kwestog/Documents/code/near_agi
+cp .env.example .env
+nano .env
+```
 
-/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda \
-  benchmark --suite smoke \
-  --provider openrouter \
-  --model openai/gpt-5.6-sol \
+Use these exact values (replace only the key):
+
+```dotenv
+OPENROUTER_API_KEY=sk-or-v1-REPLACE_ME
+OPENROUTER_MODEL=openai/gpt-5.6-sol
+LAYA_CHECKPOINT=/mnt/fast-ssd/models/laya/base-english
+HF_HOME=/mnt/fast-ssd/huggingface
+```
+
+## Phase 1 execution order
+
+First validate the benchmark without network or API cost:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/pytest
+/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark \
+  --suite smoke \
+  --provider deterministic \
+  --seeds 0,1
+```
+
+Then validate the local Laya checkpoint, still without an API call:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark \
+  --suite smoke \
+  --provider deterministic \
+  --seeds 0 \
   --with-laya
 ```
 
-Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone.
+Finally run the small live OpenRouter comparison using the exact same GPT-5.6 Sol model for direct actions and candidate generation:
+
+```bash
+cd /home/kwestog/Documents/code/near_agi
+/mnt/fast-ssd/laya-dynamics-agent/.venv/bin/lda benchmark \
+  --suite smoke \
+  --provider openrouter \
+  --model openai/gpt-5.6-sol \
+  --seeds 0 \
+  --with-laya
+```
+
+The live campaign contains `direct_gpt`, `candidates_heuristic`, and `candidates_base_laya` across three tasks. Candidate responses are cached under `data/candidate_cache/`; trajectories are stored in `data/trajectories.sqlite3`, events under `logs/runs/`, and the comparative report under `reports/latest/`. Re-running an identical candidate state replays its cached response rather than spending another candidate-generation call. Direct GPT calls remain independent because they are the control arm.
+
+Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone. The smoke suite validates the experimental wiring; it is not the full statistically powered campaign.

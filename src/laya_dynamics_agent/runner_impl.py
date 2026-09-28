@@ -12,15 +12,20 @@ def prediction_error(predicted: TransitionPrediction, observed: Any) -> dict[str
 
 
 async def run_episode(*, run_id: str, task_id: str, environment: Any, planner: Any, predictor: Any | None, policy: Any, store: Any, max_steps: int = 6, max_actions: int = 5, stop_requested: Any | None = None) -> dict[str, Any]:
-    state = environment.reset(task_id); seen = {}; action_ids = []; stop_reason = "max_steps"; errors = []
+    state = environment.reset(task_id); seen = {}; action_ids = []; stop_reason = "max_steps"; errors = []; unsafe_actions = 0; planner_latencies = []; predictor_latency_ms = 0.0; usage_totals: dict[str, float] = {}
     for _ in range(max_steps):
         if stop_requested and stop_requested(): stop_reason = "interrupted"; break
         seen[state.state_hash] = seen.get(state.state_hash, 0) + 1
         if seen[state.state_hash] > 1: stop_reason = "repeated_state"; break
         started = time.perf_counter(); actions = await planner.propose_actions(state, max_actions); planner_ms = (time.perf_counter()-started)*1000
+        planner_latencies.append(planner_ms)
+        for key, value in getattr(planner, "last_usage", {}).items():
+            if isinstance(value, (int, float)): usage_totals[key] = usage_totals.get(key, 0) + value
         if not actions: stop_reason = "no_candidates"; break
         predictions = predictor.predict(state, actions) if predictor else {}
+        predictor_latency_ms += sum(p.latency_ms for p in predictions.values())
         chosen = policy.select(state, actions, predictions); transition = environment.step(chosen)
+        unsafe_actions += int(transition.observed.risk > 0)
         err = prediction_error(predictions[chosen.action_id], transition.observed) if chosen.action_id in predictions else {}
         if err: errors.append(err)
         store.save_step(run_id, task_id, state.step_index, state_before=state, candidates=actions, predictions=predictions, chosen_action=chosen, state_after=transition.after, observed=transition.observed, reward=transition.reward, timings={"planner_ms": planner_ms, "predictor_ms": sum(p.latency_ms for p in predictions.values()), "prediction_error": err}, error=transition.error)
@@ -29,5 +34,5 @@ async def run_episode(*, run_id: str, task_id: str, environment: Any, planner: A
         if state.terminal: stop_reason = "success" if state.success else "terminal_failure"; break
         if len(action_ids) >= 4 and action_ids[-4:-2] == action_ids[-2:]: stop_reason = "oscillation"; break
         if len(action_ids) >= 2 and action_ids[-1] == action_ids[-2]: stop_reason = "repeated_action"; break
-    return {"task_id": task_id, "success": bool(state.success), "steps": state.step_index, "stop_reason": stop_reason, "actions": action_ids, "mean_prediction_mae": (sum(sum(x.values())/len(x) for x in errors)/len(errors) if errors else None)}
+    return {"task_id": task_id, "success": bool(state.success), "steps": state.step_index, "stop_reason": stop_reason, "actions": action_ids, "mean_prediction_mae": (sum(sum(x.values())/len(x) for x in errors)/len(errors) if errors else None), "planner_latency_ms": sum(planner_latencies), "usage": usage_totals, "predictor_latency_ms": predictor_latency_ms, "unsafe_actions": unsafe_actions, "unnecessary_actions": max(0, state.step_index - 2) if state.success else state.step_index}
 

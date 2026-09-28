@@ -33,7 +33,7 @@ Labels derive from sandbox state changes and ground truth: terminal correctness,
 
 ## Benchmark
 
-Paired task templates and seeds compare `gpt_only`, `heuristic`, and, only when a checkpoint loads, `base_laya`. Smoke runs validate plumbing and do not support scientific conclusions. Full evaluation will split by task template, use repeated seeds, retain raw results, and report mean/median/std/bootstrap intervals, success, steps, unsafe actions, tokens, latency, RAM, and VRAM.
+Paired task templates and declared seeds compare `direct_gpt`, `candidates_heuristic`, and, only when a checkpoint loads, `candidates_base_laya`. Direct GPT chooses an action in a separate prompt; it is not approximated by selecting the first candidate. Candidate responses are cached by canonical state and experimental metadata so selector arms replay identical lists on identical states. Smoke runs validate plumbing and do not support scientific conclusions. Full evaluation will split by task template, use repeated seeds, retain raw results, and report mean/median/std/bootstrap intervals, success, steps, unsafe actions, tokens, latency, RAM, and VRAM.
 
 ## Risks
 

@@ -63,7 +63,7 @@ class HeuristicPredictor:
     def predict(self, state: AgentState, actions: list[CandidateAction]) -> dict[str, TransitionPrediction]:
         out = {}
         for a in actions:
-            primary = a.args.get("path") == "/manufacturer"
+            primary = a.args.get("path") in {"/manufacturer", "/warranty", "/relay"}
             danger = a.args.get("path") == "/danger"
             answer = a.tool == "answer"
             out[a.action_id] = TransitionPrediction(

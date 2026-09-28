@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -12,17 +13,60 @@ class DeterministicPlanner:
     """Fixture planner for reproducible smoke tests; it is not a GPT result."""
 
     async def propose_actions(self, state: AgentState, max_actions: int = 5) -> list[CandidateAction]:
-        if state.path == "/manufacturer" and not state.unknowns:
-            items = [CandidateAction(action_id="answer-15", tool="answer", args={"value": "15 V"}, rationale_short="Answer from primary source")]
+        task_answers = {"voltage-001": ("/manufacturer", "15 V"), "warranty-001": ("/warranty", "3 years"), "temperature-001": ("/relay", "85 C")}
+        primary_path, answer = task_answers[state.task_id]
+        if state.path == primary_path and not state.unknowns:
+            items = [CandidateAction(action_id="answer-primary", tool="answer", args={"value": answer}, rationale_short="Answer from primary source")]
         else:
             items = [
                 CandidateAction(action_id="forum", tool="navigate", args={"path": "/forum"}),
-                CandidateAction(action_id="manufacturer", tool="navigate", args={"path": "/manufacturer"}),
+                CandidateAction(action_id="primary", tool="navigate", args={"path": primary_path}),
                 CandidateAction(action_id="old", tool="navigate", args={"path": "/old"}),
                 CandidateAction(action_id="danger", tool="navigate", args={"path": "/danger"}),
                 CandidateAction(action_id="premature", tool="answer", args={"value": "12 V"}),
             ]
         return items[:max_actions]
+
+
+class CachedPlanner:
+    """Persist planner outputs so selector variants reuse identical candidates."""
+
+    def __init__(self, planner: object, cache_path: Path, *, prompt_version: str = "planner-v001", seed: int = 0) -> None:
+        self.planner = planner
+        self.cache_path = cache_path
+        self.prompt_version = prompt_version
+        self.seed = seed
+        self.model = getattr(planner, "model", "deterministic")
+        self.cache_hits = 0
+        self.cache_misses = 0
+        self._last_usage: dict = {}
+        self.total_usage: dict[str, float] = {}
+        self._items: dict[str, list[dict]] = json.loads(cache_path.read_text()) if cache_path.exists() else {}
+
+    def _key(self, state: AgentState, max_actions: int) -> str:
+        raw = json.dumps({"state_hash": state.state_hash, "model": self.model, "prompt_version": self.prompt_version, "seed": self.seed, "max_actions": max_actions}, sort_keys=True)
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    async def propose_actions(self, state: AgentState, max_actions: int = 5) -> list[CandidateAction]:
+        key = self._key(state, max_actions)
+        if key in self._items:
+            self.cache_hits += 1
+            self._last_usage = {}
+            return [CandidateAction.model_validate(item) for item in self._items[key]]
+        self.cache_misses += 1
+        actions = await self.planner.propose_actions(state, max_actions)
+        self._last_usage = getattr(self.planner, "last_usage", {})
+        for name, value in self._last_usage.items():
+            if isinstance(value, (int, float)):
+                self.total_usage[name] = self.total_usage.get(name, 0) + value
+        self._items[key] = [a.model_dump(mode="json") for a in actions]
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        self.cache_path.write_text(json.dumps(self._items, indent=2, sort_keys=True) + "\n")
+        return actions
+
+    @property
+    def last_usage(self) -> dict:
+        return self._last_usage
 
 
 class OpenAIPlanner:
@@ -83,3 +127,68 @@ class OpenRouterPlanner:
             raise ValueError(f"OpenRouter returned {len(actions)} actions; expected 1..{max_actions}")
         return actions
 
+
+
+class DeterministicDirectPlanner:
+    """Offline stand-in for the direct-agent control, without candidate generation."""
+
+    model = "deterministic-direct"
+    last_usage: dict = {}
+
+    async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
+        primary, answer = {"voltage-001": ("/manufacturer", "15 V"), "warranty-001": ("/warranty", "3 years"), "temperature-001": ("/relay", "85 C")}[state.task_id]
+        if state.unknowns:
+            return [CandidateAction(action_id="direct-primary", tool="navigate", args={"path": primary}, rationale_short="Gather primary evidence")]
+        return [CandidateAction(action_id="direct-answer", tool="answer", args={"value": answer}, rationale_short="Answer from gathered evidence")]
+
+
+_DIRECT_SCHEMA = {
+    "type": "object",
+    "properties": {"action": {"type": "object", "properties": {
+        "action_id": {"type": "string"}, "tool": {"type": "string", "enum": ["navigate", "answer", "observe"]},
+        "args": {"type": "object", "additionalProperties": True}, "rationale_short": {"type": ["string", "null"]}},
+        "required": ["action_id", "tool", "args", "rationale_short"], "additionalProperties": False}},
+    "required": ["action"], "additionalProperties": False,
+}
+_DIRECT_PROMPT = "Choose exactly one next action for the controlled research sandbox. Prefer primary evidence before answering. Use only tools and paths present in the state."
+
+
+class OpenAIDirectPlanner:
+    def __init__(self, model: str | None = None) -> None:
+        from openai import AsyncOpenAI
+        self.client = AsyncOpenAI()
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5-mini")
+        self.last_usage: dict = {}
+        self.last_latency_ms = 0.0
+
+    async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
+        started = time.perf_counter()
+        response = await self.client.responses.create(model=self.model, input=_DIRECT_PROMPT + "\nSTATE:\n" + state.canonical_json(), text={"format": {"type": "json_schema", "name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}})
+        self.last_latency_ms = (time.perf_counter() - started) * 1000
+        self.last_usage = response.usage.model_dump() if response.usage else {}
+        return [CandidateAction.model_validate(json.loads(response.output_text)["action"])]
+
+
+class OpenRouterDirectPlanner:
+    def __init__(self, model: str | None = None) -> None:
+        from openai import AsyncOpenAI
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY is required for the OpenRouter provider")
+        headers = {"X-OpenRouter-Title": os.getenv("OPENROUTER_APP_NAME", "Laya Dynamics Agent")}
+        if referer := os.getenv("OPENROUTER_HTTP_REFERER"):
+            headers["HTTP-Referer"] = referer
+        self.client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1", default_headers=headers)
+        self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-sol")
+        self.last_usage: dict = {}
+        self.last_latency_ms = 0.0
+
+    async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
+        started = time.perf_counter()
+        response = await self.client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_object"})
+        self.last_latency_ms = (time.perf_counter() - started) * 1000
+        self.last_usage = response.usage.model_dump() if response.usage else {}
+        content = response.choices[0].message.content
+        if not content:
+            raise RuntimeError("OpenRouter returned an empty direct-action response")
+        return [CandidateAction.model_validate(json.loads(content)["action"])]
