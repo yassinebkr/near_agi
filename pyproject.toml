@@ -1,0 +1,29 @@
+[project]
+name = "laya-dynamics-agent"
+version = "0.1.0"
+description = "Reproducible POC for evaluating a specialised Laya transition predictor"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = ["pydantic>=2.8,<3", "openai>=1.50,<3"]
+
+[project.optional-dependencies]
+laya = ["laya @ git+https://github.com/NandhaKishorM/laya.git"]
+test = ["pytest>=8.3", "pytest-asyncio>=0.24"]
+
+[project.scripts]
+lda = "laya_dynamics_agent.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/laya_dynamics_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
