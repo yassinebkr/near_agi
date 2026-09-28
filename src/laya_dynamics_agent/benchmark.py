@@ -161,7 +161,15 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                 break
     finally:
         store.close()
+    expected_episodes = len(task_ids) * len(seeds) * len(configs)
+    final_protocol = {
+        "heldout_suite": suite == "final", "declared_seeds": list(seeds) == [0, 1, 2, 3, 4],
+        "fresh_candidate_cache": fresh_candidate_cache, "laya_enabled": include_laya,
+        "live_provider": provider in {"openai", "openrouter"},
+        "complete": not shutdown.event.is_set() and len(results) == expected_episodes,
+    }
     report = {"campaign_id": campaign_id, "suite": suite, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(task_ids), "laya_runtime": laya_runtime, "candidate_cache": str(cache_path), "fresh_candidate_cache": fresh_candidate_cache, "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "candidate_generation_usage_current_run": cached.fresh_usage, "candidate_generation_usage_replayed": cached.replayed_usage, "candidate_generation_usage_unknown_entries": cached.unknown_usage_entries, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
+    report["final_protocol"] = {**final_protocol, "compliant": all(final_protocol.values())}
     root = Path("reports") / campaign_id
     root.mkdir(parents=True, exist_ok=True)
     (root / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")

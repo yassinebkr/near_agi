@@ -185,6 +185,9 @@ def print_benchmark_summary(report: dict[str, Any]) -> None:
     print("\nBenchmark complete")
     print(f"Campaign: {report['campaign_id']}")
     print(f"Provider: {report['provider']} | model: {report['model']}")
+    if report.get("suite") == "final":
+        status = "COMPLIANT" if report.get("final_protocol", {}).get("compliant") else "NON-COMPLIANT PILOT"
+        print(f"Final protocol: {status}")
     print("Mode                         Runs  Success  Steps  Unsafe  Predictor")
     for mode, metrics in report["aggregate"]["modes"].items():
         predictor_seconds = metrics["predictor_latency_ms"] / 1000
