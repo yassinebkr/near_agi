@@ -15,12 +15,18 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 from .planners import DeterministicPlanner, OpenAIPlanner, OpenRouterPlanner
 from .policies import GPTOnlyPolicy, GreedyUtilityPolicy, UtilityWeights
 from .predictors import HeuristicPredictor, LayaPredictor
 from .runner_impl import run_episode
 from .sandbox import SandboxWebEnvironment
 from .storage_v2 import TrajectoryStore
+
+
+# Load project-local secrets without overriding explicitly exported variables.
+load_dotenv(dotenv_path=Path.cwd() / ".env", override=False)
 
 
 class GracefulShutdown:
