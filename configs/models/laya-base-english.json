@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "repository": "convaiinnovations/laya",
+  "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+  "local_path": "/mnt/fast-ssd/models/laya/base-english",
+  "weights_file": "model.safetensors",
+  "weights_size_bytes": 842609210,
+  "weights_sha256": "891102d372688fc2a094dac56a384bc537b87c63f21f9f3dac0be2b7cbc8d86c",
+  "downloaded_at": "2026-09-28",
+  "verified_scope": "file presence, size and SHA-256; runtime load pending dependency/GPU validation"
+}
+

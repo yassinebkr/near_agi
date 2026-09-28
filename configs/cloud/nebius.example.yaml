@@ -1,0 +1,13 @@
+schema_version: "1.0"
+provider: nebius
+enabled: false
+# Fill only after choosing the reference training profile. Never store credentials here.
+instance_type: null
+gpu_count: null
+container_image: null
+dataset_manifest: null
+train_config: configs/train/v001.yaml
+output_uri: null
+local_verified_destination: /mnt/fast-ssd/laya-dynamics-agent/checkpoints
+require_explicit_launch_approval: true
+
