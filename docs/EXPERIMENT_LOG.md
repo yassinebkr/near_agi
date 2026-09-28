@@ -4,6 +4,12 @@
 
 The final matrix was frozen before live execution: 90 tasks, three held-out templates, 30 instances per template, and seeds `0,1,2,3,4`. A compliant report must use a fresh cache, CUDA base Laya, a live provider, and complete all 1,350 episodes. Each report fingerprints the canonical task manifest with SHA-256. A one-seed pilot is operational validation only and is excluded from final inference.
 
+## Historical latency limitation
+
+The campaigns below predate durable episode wall-clock and cache-provenance telemetry. Candidate-based arms shared a `CachedPlanner`, so the first selector reaching a state could pay the GPT generation latency while another selector replayed the same candidates. Their recorded `predictor time` measures predictor-internal work only. it is neither selector-path wall time nor cold-start end-to-end time.
+
+Terminal observations suggested substantial heterogeneity: some base-Laya episodes appeared two to three times slower or failed, while others appeared roughly three to six times faster than direct GPT. Those observations motivated the current instrumentation, but they cannot support a retrospective speedup distribution. Historical values remain unchanged, and no definitive end-to-end latency conclusion is drawn from them. New campaigns separately report observed wall time, fresh/replayed provenance and reconstructed effective end-to-end latency when original generation timing is complete.
+
 ## benchmark-795a36f9 · challenge · seed 0
 
 Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `/mnt/fast-ssd/models/laya/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped.
@@ -18,9 +24,9 @@ Candidate generation used 10,326 tokens and cost $0.044804. Direct GPT used 7,05
 
 The only behavioural difference occurred on `pressure-001`. Direct GPT and the heuristic selector opened `/pump-sheet` and answered in two steps. Base Laya first selected the no-op `inspect_search_page`, then opened `/pump-sheet` and answered in three steps. At the first decision, the fixed utility policy scored `inspect_search_page` at approximately 0.726 and `open_official_pump_sheet` at approximately 0.699, a margin of 0.028. The observed no-op had zero goal progress and zero information gain. This is a concrete base-model ranking error, not a planner failure, but one visible development case is not statistically conclusive.
 
-The extra branch explains the cache counts: the heuristic arm generated candidates for 18 canonical states; Laya reused 17 of them and created two additional entries for its divergent history. All arms completed every task without simulated unsafe actions. Absolute Laya confidence remains uncalibrated because the checkpoint temperature warning was active.
+The extra branch explains the cache counts: the heuristic arm generated candidates for 18 canonical states. Laya reused 17 of them and created two additional entries for its divergent history. All arms completed every task without simulated unsafe actions. Absolute Laya confidence remains uncalibrated because the checkpoint temperature warning was active.
 
-The raw campaign artifacts remain local under `reports/`, `data/trajectories.sqlite3`, `data/candidate_cache/`, and `logs/runs/`. They are intentionally excluded from Git; this entry contains the stable aggregate and interpretation needed for repository auditability.
+The raw campaign artifacts remain local under `reports/`, `data/trajectories.sqlite3`, `data/candidate_cache/`, and `logs/runs/`. They are intentionally excluded from Git. this entry contains the stable aggregate and interpretation needed for repository auditability.
 
 This challenge suite is a visible development benchmark. It does not satisfy the held-out sample-size requirements in the evaluation protocol and must not be presented as evidence that the architecture improves performance.
 

@@ -2,17 +2,19 @@
 
 ## Scope
 
-This procedure runs domain post-training on one preemptible NVIDIA H100. It never creates Nebius resources; VM, disk and IP creation remain deliberate console actions because they are billable. Training follows Laya's published single-GPU RLCD recipe at pinned revision `9d955671415fc19f069b9cc998928075c1f255ec`.
+This procedure runs domain post-training on one preemptible NVIDIA H100. It never creates Nebius resources. VM, disk and IP creation remain deliberate console actions because they are billable. Training follows Laya's published single-GPU RLCD recipe at pinned revision `9d955671415fc19f069b9cc998928075c1f255ec`.
 
 ## Safety invariants
 
 - `final-v001` identifiers are rejected during generation and preprocessing.
 - Raw splits and resume checkpoints are bound to SHA-256 hashes.
-- Development templates are disjoint from training templates; calibration receives no gradient updates.
+- Development templates are disjoint from training templates. calibration receives no gradient updates.
 - Paid training requires `NEBIUS_TRAIN_APPROVED=YES`.
 - Atomic checkpoints are written to persistent storage every 600 seconds and on graceful interruption.
 - The VM shuts down after completion, failure or interruption when `AUTO_SHUTDOWN=1`.
 - A stopped VM can still incur storage and IP charges. Evacuate, verify, then delete every resource.
+
+Before restarting any paid VM, require green tests and a completed local validation benchmark whose report contains wall-clock, fresh/cache provenance, component timings, paired ratios and reconstruction-completeness fields. Record the gate summary before training.
 
 ## 1. Freeze the local dataset
 
@@ -25,7 +27,7 @@ PYTHON_BIN=/mnt/fast-ssd/laya-dynamics-agent/.venv-cu124/bin/python \
 python -m json.tool configs/train/v001.dataset-manifest.json
 ```
 
-The raw build contains 36,000 training, 5,400 validation, 5,400 calibration and 10,800 unseen-template development sequences. Deterministic rare-label oversampling expands only the training split to 58,800 sequences; the evaluation splits keep their natural distribution. Do not rebuild it after training begins.
+The raw build contains 36,000 training, 5,400 validation, 5,400 calibration and 10,800 unseen-template development sequences. Deterministic rare-label oversampling expands only the training split to 58,800 sequences. the evaluation splits keep their natural distribution. Do not rebuild it after training begins.
 
 ## 2. Create resources manually
 
@@ -37,13 +39,25 @@ Do not create a reusable image or snapshot.
 
 ## 3. Stage and preflight
 
-From the local machine:
+After a stopped VM is restarted, obtain its current status and public IP from Nebius before SSH. Keep the IP in a shell variable only. Never commit it. Verify or install the transfer and terminal tools on the VM, then stage from the local machine:
 
 ```bash
-scripts/nebius_stage.sh ubuntu@VM_IP
+VM_HOST=USER@CURRENT_VM_IP
+SSH_KEY=/path/to/private_key
+
+ssh -i "$SSH_KEY" -o IdentitiesOnly=yes "$VM_HOST" '
+  if ! command -v rsync >/dev/null || ! command -v screen >/dev/null
+  then
+    sudo apt-get update
+    sudo apt-get install -y rsync screen
+  fi
+'
+
+RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
+  scripts/nebius_stage.sh "$VM_HOST"
 ```
 
-`nebius_stage.sh` uses `rsync`; install it on both endpoints if either machine lacks it. Configure the SSH key in `~/.ssh/config` or load it into `ssh-agent` before staging.
+`nebius_stage.sh` uses `rsync` at both endpoints. Configure the SSH key explicitly as above or load it into `ssh-agent`.
 
 On the VM:
 

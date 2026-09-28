@@ -188,10 +188,12 @@ def print_benchmark_summary(report: dict[str, Any]) -> None:
     if report.get("suite") == "final":
         status = "COMPLIANT" if report.get("final_protocol", {}).get("compliant") else "NON-COMPLIANT PILOT"
         print(f"Final protocol: {status}")
-    print("Mode                         Runs  Success  Steps  Unsafe  Predictor")
+    print("Mode                         Runs  Success  Steps  Unsafe  Wall p50  Predictor")
     for mode, metrics in report["aggregate"]["modes"].items():
         predictor_seconds = metrics["predictor_latency_ms"] / 1000
-        print(f"{mode:<27}  {metrics['episodes']:>4}  {metrics['success_rate']:>7.1%}  {metrics['mean_steps']:>5.2f}  {metrics['unsafe_actions']:>6}  {predictor_seconds:>7.1f}s")
+        wall_p50 = metrics.get("p50_wall_clock_ms")
+        wall_text = f"{wall_p50 / 1000:.2f}s" if wall_p50 is not None else "n/a"
+        print(f"{mode:<27}  {metrics['episodes']:>4}  {metrics['success_rate']:>7.1%}  {metrics['mean_steps']:>5.2f}  {metrics['unsafe_actions']:>6}  {wall_text:>8}  {predictor_seconds:>7.1f}s")
     print(f"Cache: {report['cache_hits']} hits / {report['cache_misses']} misses")
     unknown = report.get("candidate_generation_usage_unknown_entries", 0)
     candidate_usage = report.get("candidate_generation_usage", {})

@@ -1,7 +1,7 @@
 import asyncio
 from collections import Counter
 from pathlib import Path
-from laya_dynamics_agent.benchmark import run_benchmark_suite
+from laya_dynamics_agent.benchmark import _paired_comparisons, run_benchmark_suite
 from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
 from laya_dynamics_agent.models import CandidateAction
 from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_structured_action, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
@@ -116,6 +116,10 @@ def test_benchmark_report_has_real_direct_arm_and_aggregate(tmp_path: Path, monk
     comparison = report["aggregate"]["paired_comparisons"]["candidates_heuristic_vs_direct_gpt"]
     assert comparison["pairs"] == 3
     assert comparison["success_delta_ci95"] == [0.0, 0.0]
+    assert comparison["pairs_valid_time_to_success"] == 3
+    assert report["aggregate"]["modes"]["direct_gpt"]["p95_wall_clock_ms"] is not None
+    assert all("wall_clock_ms" in row for row in report["results"])
+    assert report["aggregate"]["modes"]["candidates_heuristic"]["candidate_fresh_count"] > 0
     assert report["final_protocol"]["compliant"] is False
     assert (tmp_path / "reports/latest/metrics.json").exists()
 
@@ -298,3 +302,116 @@ def test_posttraining_promotion_gate_is_fail_closed(tmp_path: Path):
     failed = promotion_gate(base_path, candidate_path)
     assert failed["passed"] is False
     assert failed["checks"]["development_selection_at_least_95pct"] is False
+
+
+def test_latency_telemetry_persists_episode_and_step_provenance(tmp_path: Path):
+    cache_path = tmp_path / "candidate-cache.json"
+    db_path = tmp_path / "telemetry.sqlite"
+    planner = CachedPlanner(DeterministicPlanner(), cache_path)
+    store = TrajectoryStore(db_path, tmp_path / "logs")
+    store.start_run("fresh", {"mode": "candidate"})
+    fresh = asyncio.run(run_episode(run_id="fresh", task_id="voltage-001",
+        environment=SandboxWebEnvironment(), planner=planner, predictor=HeuristicPredictor(),
+        policy=GreedyUtilityPolicy(), store=store))
+    store.finish_run("fresh", "completed", fresh)
+    assert fresh["wall_clock_ms"] > 0
+    assert fresh["candidate_fresh_count"] == fresh["steps"]
+    assert fresh["candidate_cache_hit_count"] == 0
+    assert fresh["effective_end_to_end_complete"] is True
+    assert fresh["effective_end_to_end_ms_reconstructed"] == fresh["wall_clock_ms"]
+    assert fresh["predictor_wall_ms"] >= fresh["predictor_reported_ms"]
+    assert fresh["policy_ms"] >= 0 and fresh["environment_ms"] >= 0
+    assert fresh["selector_wall_ms"] == fresh["predictor_wall_ms"] + fresh["policy_ms"]
+    assert fresh["framework_overhead_ms"] >= 0
+    steps = store.reconstruct("fresh", "voltage-001")
+    assert all(step["timings"]["candidate_source"] == "fresh" for step in steps)
+    assert all(step["timings"]["candidate_generation_ms"] >= 0 for step in steps)
+    summary = __import__("json").loads(store.conn.execute(
+        "SELECT summary_json FROM runs WHERE run_id='fresh'").fetchone()[0])
+    assert summary["wall_clock_ms"] == fresh["wall_clock_ms"]
+    store.close()
+
+    replay_planner = CachedPlanner(DeterministicPlanner(), cache_path)
+    replay_store = TrajectoryStore(tmp_path / "replay.sqlite", tmp_path / "replay-logs")
+    replay_store.start_run("replay", {"mode": "candidate"})
+    replay = asyncio.run(run_episode(run_id="replay", task_id="voltage-001",
+        environment=SandboxWebEnvironment(), planner=replay_planner, predictor=HeuristicPredictor(),
+        policy=GreedyUtilityPolicy(), store=replay_store))
+    replay_store.finish_run("replay", "completed", replay)
+    replay_steps = replay_store.reconstruct("replay", "voltage-001")
+    replay_store.close()
+    assert replay["candidate_fresh_count"] == 0
+    assert replay["candidate_cache_hit_count"] == replay["steps"]
+    assert all(step["timings"]["candidate_source"] == "cache" for step in replay_steps)
+    assert all(step["timings"]["candidate_generation_ms"] == 0 for step in replay_steps)
+    assert replay["effective_end_to_end_complete"] is True
+    assert replay["effective_end_to_end_ms_reconstructed"] >= replay["wall_clock_ms"]
+
+
+def test_cache_generation_latency_survives_serialization_and_legacy_is_incomplete(tmp_path: Path):
+    state = SandboxWebEnvironment().reset("voltage-001")
+    path = tmp_path / "cache.json"
+    fresh = CachedPlanner(DeterministicPlanner(), path)
+    asyncio.run(fresh.propose_actions(state))
+    assert fresh.last_provenance["candidate_source"] == "fresh"
+    generated = fresh.last_provenance["candidate_generation_ms"]
+    replay = CachedPlanner(DeterministicPlanner(), path)
+    asyncio.run(replay.propose_actions(state))
+    assert replay.last_provenance["candidate_source"] == "cache"
+    assert replay.last_provenance["candidate_generation_ms"] == 0
+    assert replay.last_provenance["replayed_candidate_generation_ms"] == generated
+    assert replay.last_provenance["effective_latency_complete"] is True
+
+    payload = __import__("json").loads(path.read_text())
+    entry = next(iter(payload["entries"].values()))
+    entry["metadata"].pop("latency_ms")
+    path.write_text(__import__("json").dumps(payload))
+    incomplete = CachedPlanner(DeterministicPlanner(), path)
+    asyncio.run(incomplete.propose_actions(state))
+    assert incomplete.last_provenance["candidate_source"] == "cache"
+    assert incomplete.last_provenance["replayed_candidate_generation_ms"] is None
+    assert incomplete.last_provenance["effective_latency_complete"] is False
+
+
+def test_paired_latency_ratios_use_only_comparable_successes():
+    rows = []
+    def add(mode, task, success, wall, effective=None, complete=False):
+        rows.append({"mode": mode, "task_id": task, "seed": 0, "success": success,
+                     "steps": 2, "wall_clock_ms": wall,
+                     "effective_end_to_end_ms_reconstructed": effective,
+                     "effective_end_to_end_complete": complete})
+    add("direct_gpt", "ok", True, 100)
+    add("candidates_base_laya", "ok", True, 50, 120, True)
+    add("direct_gpt", "failed", True, 100)
+    add("candidates_base_laya", "failed", False, 20, 80, True)
+    add("direct_gpt", "zero", True, 0)
+    add("candidates_base_laya", "zero", True, 10, 20, True)
+    comparison = _paired_comparisons(rows)["candidates_base_laya_vs_direct_gpt"]
+    assert comparison["pairs"] == 3
+    assert comparison["pairs_both_success"] == 2
+    assert comparison["pairs_valid_time_to_success"] == 1
+    assert comparison["median_latency_ratio"] == .5
+    assert comparison["latency_ratio_distribution"]["0.25-0.5x"] == 1
+    assert comparison["all_terminal_outcomes"]["pairs"] == 3
+    assert comparison["effective_end_to_end"]["pairs_complete"] == 1
+    assert comparison["effective_end_to_end"]["median_latency_ratio"] == 1.2
+
+
+def test_predictor_wall_and_reported_latency_are_distinct(tmp_path: Path):
+    class ReportedPredictor:
+        def predict(self, state, actions):
+            predictions = HeuristicPredictor().predict(state, actions)
+            return {key: value.model_copy(update={"latency_ms": 100.0})
+                    for key, value in predictions.items()}
+
+    store = TrajectoryStore(tmp_path / "predictor.sqlite", tmp_path / "predictor-logs")
+    store.start_run("predictor", {"test": True})
+    result = asyncio.run(run_episode(run_id="predictor", task_id="voltage-001",
+        environment=SandboxWebEnvironment(), planner=DeterministicPlanner(),
+        predictor=ReportedPredictor(), policy=GreedyUtilityPolicy(), store=store))
+    store.finish_run("predictor", "completed", result)
+    store.close()
+    assert result["predictor_reported_ms"] == 600.0
+    assert result["predictor_wall_ms"] != result["predictor_reported_ms"]
+    event_text = (tmp_path / "predictor-logs" / "predictor" / "events.jsonl").read_text()
+    assert '"wall_clock_ms"' in event_text

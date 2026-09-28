@@ -19,11 +19,12 @@ class TrajectoryStore:
         columns={row[1] for row in self.conn.execute("PRAGMA table_info(runs)")}
         if "ended_at" not in columns: self.conn.execute("ALTER TABLE runs ADD COLUMN ended_at TEXT")
         if "status" not in columns: self.conn.execute("ALTER TABLE runs ADD COLUMN status TEXT NOT NULL DEFAULT 'running'")
+        if "summary_json" not in columns: self.conn.execute("ALTER TABLE runs ADD COLUMN summary_json TEXT")
         self.conn.commit()
     def start_run(self,run_id:str,config:dict[str,Any]):
         now=datetime.now(timezone.utc).isoformat(); self.conn.execute("INSERT INTO runs(run_id,config_json,started_at,status) VALUES(?,?,?,'running')",(run_id,json.dumps(config,sort_keys=True),now)); self.conn.commit(); self.event(run_id,"-",0,"run_started",{"config":config})
     def finish_run(self,run_id:str,status:str,summary:dict[str,Any]):
-        now=datetime.now(timezone.utc).isoformat(); self.conn.execute("UPDATE runs SET ended_at=?,status=? WHERE run_id=?",(now,status,run_id));self.conn.commit();self.event(run_id,summary.get("task_id","-"),summary.get("steps",0),"run_interrupted" if status=="interrupted" else "run_finished",{"status":status,"summary":summary})
+        now=datetime.now(timezone.utc).isoformat(); encoded=json.dumps(plain(summary),sort_keys=True); self.conn.execute("UPDATE runs SET ended_at=?,status=?,summary_json=? WHERE run_id=?",(now,status,encoded,run_id));self.conn.commit();self.event(run_id,summary.get("task_id","-"),summary.get("steps",0),"run_interrupted" if status=="interrupted" else "run_finished",{"status":status,"summary":summary})
     def close(self):
         self.conn.commit();self.conn.close()
     def save_step(self,run_id:str,task_id:str,step:int,**data:Any):

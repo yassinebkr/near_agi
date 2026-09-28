@@ -44,6 +44,7 @@ class CachedPlanner:
         self.cache_hits = 0
         self.cache_misses = 0
         self._last_usage: dict = {}
+        self.last_provenance: dict = {}
         self.fresh_usage: dict[str, float] = {}
         self.replayed_usage: dict[str, float] = {}
         self.unknown_usage_entries = 0
@@ -81,25 +82,46 @@ class CachedPlanner:
         return hashlib.sha256(raw.encode()).hexdigest()
 
     async def propose_actions(self, state: AgentState, max_actions: int = 5) -> list[CandidateAction]:
+        lookup_started = time.perf_counter()
         key = self._key(state, max_actions)
         if key in self._entries:
             self.cache_hits += 1
             self._last_usage = {}
             entry = self._entries[key]
+            metadata = entry.get("metadata", {})
+            actions = [CandidateAction.model_validate(item) for item in entry["actions"]]
+            lookup_ms = (time.perf_counter() - lookup_started) * 1000
+            original_latency = metadata.get("latency_ms")
+            valid_original_latency = isinstance(original_latency, (int, float)) and original_latency >= 0
+            self.last_provenance = {
+                "candidate_source": "cache", "candidate_cache_key": key,
+                "candidate_generation_ms": 0.0, "candidate_cache_lookup_ms": lookup_ms,
+                "replayed_candidate_generation_ms": float(original_latency) if valid_original_latency else None,
+                "effective_latency_complete": valid_original_latency,
+                "candidate_generation_provider": metadata.get("provider"),
+                "candidate_generation_model": metadata.get("model"),
+            }
             if key not in self._accounted_keys:
-                metadata = entry.get("metadata", {})
                 usage = metadata.get("usage", {})
                 if metadata.get("legacy") or not usage:
                     self.unknown_usage_entries += 1
                 else:
                     self._add_usage(self.replayed_usage, usage)
                 self._accounted_keys.add(key)
-            return [CandidateAction.model_validate(item) for item in entry["actions"]]
+            return actions
         self.cache_misses += 1
+        lookup_ms = (time.perf_counter() - lookup_started) * 1000
         started = time.perf_counter()
         actions = await self.planner.propose_actions(state, max_actions)
         latency_ms = (time.perf_counter() - started) * 1000
         self._last_usage = getattr(self.planner, "last_usage", {})
+        self.last_provenance = {
+            "candidate_source": "fresh", "candidate_cache_key": key,
+            "candidate_generation_ms": latency_ms, "candidate_cache_lookup_ms": lookup_ms,
+            "replayed_candidate_generation_ms": 0.0, "effective_latency_complete": True,
+            "candidate_generation_provider": self.provider,
+            "candidate_generation_model": self.model,
+        }
         self._add_usage(self.fresh_usage, self._last_usage)
         self._accounted_keys.add(key)
         self._entries[key] = {
