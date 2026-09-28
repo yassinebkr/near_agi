@@ -3,8 +3,12 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
+import re
+import unicodedata
 
 from .models import ActionRecord, AgentState, Belief, CandidateAction, Observation, ObservedProperties, Transition
+
+LABELER_VERSION = "answer-v002"
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,18 @@ PAGES.update({
     "/warranty": Page("Nova Drill warranty", "Official warranty terms: coverage lasts 3 years.", "primary"),
     "/relay": Page("Orion Relay datasheet", "Official datasheet: maximum operating temperature is 85 C.", "primary"),
 })
+
+
+def answer_matches(task_id: str, value: str) -> bool:
+    """Match the requested fact inside a natural-language answer without fuzzy guessing."""
+    normalized = unicodedata.normalize("NFKD", value).casefold().replace("°", "")
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+    patterns = {
+        "voltage-001": r"(?<!\d)15\s*(?:v|volt|volts)(?![a-z0-9])",
+        "warranty-001": r"(?<!\d)3\s*(?:year|years)(?![a-z0-9])",
+        "temperature-001": r"(?<!\d)85\s*(?:c|celsius)(?![a-z0-9])",
+    }
+    return re.search(patterns[task_id], normalized) is not None
 
 
 class SandboxWebEnvironment:
@@ -87,7 +103,7 @@ class SandboxWebEnvironment:
             value = str(action.args.get("value", "")).strip().lower()
             after.terminal = True
             expected = str(self._task["answer"]).strip().lower() if self._task else ""
-            after.success = value.replace(" ", "") == expected.replace(" ", "") and any(b.value.lower() == expected and b.confidence == 1 for b in after.beliefs)
+            after.success = answer_matches(before.task_id, value) and any(b.value.lower() == expected and b.confidence == 1 for b in after.beliefs)
         elif action.tool == "observe":
             pass
         after.step_index += 1

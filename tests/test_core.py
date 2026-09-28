@@ -7,7 +7,7 @@ from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
 from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor
 from laya_dynamics_agent.runner_impl import run_episode
-from laya_dynamics_agent.sandbox import SandboxWebEnvironment, TASKS
+from laya_dynamics_agent.sandbox import SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
 
 def test_state_hash_is_stable():
@@ -107,3 +107,20 @@ def test_openrouter_schema_is_strict_and_normalizes_nullable_args():
     assert _ACTION_SCHEMA["properties"]["args"]["additionalProperties"] is False
     action = _parse_structured_action({"action_id": "a", "tool": "navigate", "args": {"path": "/forum", "value": None}, "rationale_short": None})
     assert action.args == {"path": "/forum"}
+
+
+def test_natural_language_answers_from_live_run_are_accepted():
+    assert answer_matches("voltage-001", "The official absolute maximum input voltage is 15 V.")
+    assert answer_matches("warranty-001", "The Nova Drill’s official warranty duration is 3 years.")
+    assert answer_matches("temperature-001", "The maximum operating temperature is 85 °C.")
+    assert not answer_matches("voltage-001", "The archived value is 10 V.")
+    assert not answer_matches("warranty-001", "The warranty is 2 years.")
+    assert not answer_matches("temperature-001", "The relay is rated to 70 C.")
+
+
+def test_environment_accepts_correct_fact_in_sentence():
+    env = SandboxWebEnvironment()
+    env.reset("temperature-001")
+    env.step(CandidateAction(action_id="source", tool="navigate", args={"path": "/relay"}))
+    transition = env.step(CandidateAction(action_id="answer", tool="answer", args={"value": "The Orion Relay's official maximum operating temperature is 85 °C."}))
+    assert transition.after.success is True

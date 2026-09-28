@@ -17,7 +17,7 @@ The deterministic provider supplies offline stand-ins for wiring tests and must 
 
 ## Frozen metadata and measurements
 
-Every episode records campaign/run/task/template identifiers, seed, provider, exact model, direct or candidate prompt version, candidate count, policy weights, candidate-cache path, chosen actions, stop reason, planner usage, planner latency, predictor latency, unsafe actions, unnecessary actions, prediction error, and reconstructable transitions in SQLite plus JSONL.
+Every episode records campaign/run/task/template identifiers, seed, provider, exact model, labeler version, direct or candidate prompt version, candidate count, policy weights, candidate-cache path, chosen actions, stop reason, planner usage, planner latency, predictor latency, unsafe actions, unnecessary actions, prediction error, and reconstructable transitions in SQLite plus JSONL.
 
 Report task success, mean/median steps, unnecessary actions, loops, tool failures, simulated unsafe actions, token/cost fields returned by the provider, component latency, and prediction MAE. For a full held-out campaign add mean/median/std and bootstrap confidence intervals, peak RAM/VRAM, balanced accuracy, Brier score, log loss, ECE, and reliability plots where outputs are calibrated probabilities.
 

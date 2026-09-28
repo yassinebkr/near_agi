@@ -13,7 +13,7 @@ from .planners import CachedPlanner, DeterministicDirectPlanner, DeterministicPl
 from .policies import GPTOnlyPolicy, GreedyUtilityPolicy, UtilityWeights
 from .predictors import HeuristicPredictor, LayaPredictor
 from .runner_impl import run_episode
-from .sandbox import SandboxWebEnvironment, TASKS
+from .sandbox import LABELER_VERSION, SandboxWebEnvironment, TASKS
 from .storage_v2 import TrajectoryStore
 
 PROMPT_VERSION = "planner-v001"
@@ -96,7 +96,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                     progress(f"[{episode_number}/{total_episodes}] {task_id} | {mode} | seed={seed} ...")
                     episode_started = time.perf_counter()
                     run_id = f"{campaign_id}-{mode}-{task_id}-s{seed}"
-                    config = {"campaign_id": campaign_id, "mode": mode, "task_id": task_id, "template_id": TASKS[task_id]["template_id"], "seed": seed, "provider": provider, "model": getattr(planner, "model", resolved_model), "prompt_version": DIRECT_PROMPT_VERSION if mode == "direct_gpt" else PROMPT_VERSION, "candidate_count": 1 if mode == "direct_gpt" else 5, "weights": UtilityWeights().__dict__, "candidate_cache": str(cache_path)}
+                    config = {"campaign_id": campaign_id, "mode": mode, "task_id": task_id, "template_id": TASKS[task_id]["template_id"], "seed": seed, "provider": provider, "model": getattr(planner, "model", resolved_model), "prompt_version": DIRECT_PROMPT_VERSION if mode == "direct_gpt" else PROMPT_VERSION, "labeler_version": LABELER_VERSION, "candidate_count": 1 if mode == "direct_gpt" else 5, "weights": UtilityWeights().__dict__, "candidate_cache": str(cache_path)}
                     store.start_run(run_id, config)
                     try:
                         result = await run_episode(run_id=run_id, task_id=task_id, environment=SandboxWebEnvironment(), planner=planner, predictor=predictor, policy=policy, store=store, max_actions=1 if mode == "direct_gpt" else 5, stop_requested=shutdown.event.is_set)
@@ -117,7 +117,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                 break
     finally:
         store.close()
-    report = {"campaign_id": campaign_id, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "seeds": list(seeds), "tasks": list(TASKS), "candidate_cache": str(cache_path), "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
+    report = {"campaign_id": campaign_id, "provider": provider, "model": resolved_model, "prompt_versions": {"direct": DIRECT_PROMPT_VERSION, "candidates": PROMPT_VERSION}, "labeler_version": LABELER_VERSION, "seeds": list(seeds), "tasks": list(TASKS), "candidate_cache": str(cache_path), "cache_hits": cached.cache_hits, "cache_misses": cached.cache_misses, "candidate_generation_usage": cached.total_usage, "direct_usage": _sum_usage([r for r in results if r["mode"] == "direct_gpt"]), "interrupted": shutdown.event.is_set(), "aggregate": _aggregate(results), "results": results}
     root = Path("reports") / campaign_id
     root.mkdir(parents=True, exist_ok=True)
     (root / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
