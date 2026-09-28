@@ -5,7 +5,7 @@ from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
 from laya_dynamics_agent.models import CandidateAction
 from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_structured_action, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
-from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor
+from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, resolve_laya_device
 from laya_dynamics_agent.runner_impl import run_episode
 from laya_dynamics_agent.sandbox import SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
@@ -124,3 +124,68 @@ def test_environment_accepts_correct_fact_in_sentence():
     env.step(CandidateAction(action_id="source", tool="navigate", args={"path": "/relay"}))
     transition = env.step(CandidateAction(action_id="answer", tool="answer", args={"value": "The Orion Relay's official maximum operating temperature is 85 °C."}))
     assert transition.after.success is True
+
+
+def test_candidate_cache_persists_and_replays_usage_provenance(tmp_path: Path):
+    planner = DeterministicPlanner()
+    planner.model = "fixture-model"
+    planner.last_usage = {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14, "cost": 0.001}
+    state = SandboxWebEnvironment().reset("voltage-001")
+    path = tmp_path / "provenance.json"
+    fresh = CachedPlanner(planner, path, seed=3)
+    asyncio.run(fresh.propose_actions(state))
+    payload = __import__("json").loads(path.read_text())
+    assert payload["schema_version"] == "2.0"
+    entry = next(iter(payload["entries"].values()))
+    assert entry["metadata"]["usage"]["total_tokens"] == 14
+    replay = CachedPlanner(planner, path, seed=3)
+    asyncio.run(replay.propose_actions(state))
+    assert replay.replayed_usage["total_tokens"] == 14
+    assert replay.unknown_usage_entries == 0
+
+
+def test_candidate_cache_reads_legacy_entries_and_marks_unknown_usage(tmp_path: Path):
+    planner = DeterministicPlanner()
+    state = SandboxWebEnvironment().reset("voltage-001")
+    path = tmp_path / "legacy.json"
+    cache = CachedPlanner(planner, path)
+    key = cache._key(state, 5)
+    actions = asyncio.run(planner.propose_actions(state))
+    path.write_text(__import__("json").dumps({key: [action.model_dump(mode="json") for action in actions]}))
+    replay = CachedPlanner(planner, path)
+    migrated = __import__("json").loads(path.read_text())
+    assert migrated["schema_version"] == "2.0"
+    assert asyncio.run(replay.propose_actions(state)) == actions
+    assert replay.unknown_usage_entries == 1
+
+
+def test_laya_device_policy_fails_closed_when_cuda_is_required():
+    class Cuda:
+        @staticmethod
+        def is_available():
+            return False
+    class Version:
+        cuda = "13.0"
+    class Torch:
+        __version__ = "test"
+        cuda = Cuda()
+        version = Version()
+    assert resolve_laya_device("auto", Torch()) == "cpu"
+    assert resolve_laya_device("cpu", Torch()) == "cpu"
+    try:
+        resolve_laya_device("cuda", Torch())
+    except RuntimeError as exc:
+        assert "CUDA is unavailable" in str(exc)
+    else:
+        raise AssertionError("strict CUDA policy must fail closed")
+
+
+def test_laya_device_policy_selects_available_cuda():
+    class Cuda:
+        @staticmethod
+        def is_available():
+            return True
+    class Torch:
+        cuda = Cuda()
+    assert resolve_laya_device("auto", Torch()) == "cuda"
+    assert resolve_laya_device("cuda", Torch()) == "cuda"

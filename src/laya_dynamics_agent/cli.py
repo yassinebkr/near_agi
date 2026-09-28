@@ -44,7 +44,7 @@ class GracefulShutdown:
             print("\nShutdown already requested; waiting for the current atomic operation.", file=sys.stderr)
 
 
-def doctor() -> int:
+def doctor(*, require_cuda: bool = False) -> int:
     checks = {
         "python": sys.version.split()[0],
         "platform": platform.platform(),
@@ -68,7 +68,13 @@ def doctor() -> int:
         checks.update({"torch": torch.__version__, "torch_cuda": torch.cuda.is_available(), "cuda_version": torch.version.cuda})
     except ImportError:
         checks["torch"] = "not installed"
+    checks["laya_device_policy"] = os.getenv("LAYA_DEVICE", "auto")
+    checks["cuda_required"] = require_cuda
+    checks["cuda_ready"] = bool(checks.get("torch_cuda"))
     print(json.dumps(checks, indent=2))
+    if require_cuda and not checks["cuda_ready"]:
+        print("CUDA preflight failed: Laya would not run on GPU.", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -185,6 +191,12 @@ def print_benchmark_summary(report: dict[str, Any]) -> None:
         predictor_seconds = metrics["predictor_latency_ms"] / 1000
         print(f"{mode:<27}  {metrics['episodes']:>4}  {metrics['success_rate']:>7.1%}  {metrics['mean_steps']:>5.2f}  {metrics['unsafe_actions']:>6}  {predictor_seconds:>7.1f}s")
     print(f"Cache: {report['cache_hits']} hits / {report['cache_misses']} misses")
+    unknown = report.get("candidate_generation_usage_unknown_entries", 0)
+    candidate_usage = report.get("candidate_generation_usage", {})
+    if candidate_usage:
+        print(f"Candidate generation provenance: {candidate_usage}")
+    if unknown:
+        print(f"Candidate generation provenance unavailable for {unknown} legacy cache entries")
     print("Full report: reports/latest/summary.md")
     print("Raw metrics: reports/latest/metrics.json")
 
@@ -192,7 +204,8 @@ def print_benchmark_summary(report: dict[str, Any]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="lda")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("doctor")
+    doctor_parser = sub.add_parser("doctor")
+    doctor_parser.add_argument("--require-cuda", action="store_true", help="Exit non-zero unless PyTorch can use CUDA")
     demo = sub.add_parser("demo")
     demo.add_argument("--debug", action="store_true", help="Show full tracebacks")
     add_planner_arguments(demo)
@@ -205,7 +218,7 @@ def main() -> None:
     add_planner_arguments(bench)
     args = parser.parse_args()
     if args.command == "doctor":
-        raise SystemExit(doctor())
+        raise SystemExit(doctor(require_cuda=args.require_cuda))
     try:
         result = asyncio.run(dispatch(args))
     except KeyboardInterrupt:

@@ -55,4 +55,3 @@ Paired task templates and declared seeds compare `direct_gpt`, `candidates_heuri
 8. Harden tests and produce report artifacts.
 9. Milestone 2: collect trajectories, template-level splits, reproduce official fine-tune, calibrate on a disjoint set, evaluate untouched test.
 10. Milestone 3 only after a positive result: DAgger and broader templates.
-

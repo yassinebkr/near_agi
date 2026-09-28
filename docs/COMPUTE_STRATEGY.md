@@ -31,4 +31,3 @@ First reproduce a tiny official-style training step locally. Then estimate the c
 ## Audited integration
 
 BeyondVRAM was audited at commit `28d0a005b72f46b1dc360fcda1afc010f2766e14`; see `docs/BEYONDVRAM_AUDIT.md`. For Nebius we reuse only its verified fine-tuning/post-training operations: persistent outputs, resumable checkpoints, SIGTERM handling, evacuation, cost tracking and teardown. We do not attribute any Nebius inference experiment to BeyondVRAM.
-

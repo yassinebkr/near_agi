@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import AgentState, CandidateAction
@@ -29,7 +30,9 @@ class DeterministicPlanner:
 
 
 class CachedPlanner:
-    """Persist planner outputs so selector variants reuse identical candidates."""
+    """Persist actions and generation provenance for exact, auditable replay."""
+
+    SCHEMA_VERSION = "2.0"
 
     def __init__(self, planner: object, cache_path: Path, *, prompt_version: str = "planner-v001", seed: int = 0) -> None:
         self.planner = planner
@@ -37,11 +40,41 @@ class CachedPlanner:
         self.prompt_version = prompt_version
         self.seed = seed
         self.model = getattr(planner, "model", "deterministic")
+        self.provider = type(planner).__name__
         self.cache_hits = 0
         self.cache_misses = 0
         self._last_usage: dict = {}
-        self.total_usage: dict[str, float] = {}
-        self._items: dict[str, list[dict]] = json.loads(cache_path.read_text()) if cache_path.exists() else {}
+        self.fresh_usage: dict[str, float] = {}
+        self.replayed_usage: dict[str, float] = {}
+        self.unknown_usage_entries = 0
+        self._accounted_keys: set[str] = set()
+        self._loaded_legacy = False
+        self._entries = self._load()
+        if self._loaded_legacy:
+            self._write()
+
+    def _load(self) -> dict[str, dict]:
+        if not self.cache_path.exists():
+            return {}
+        raw = json.loads(self.cache_path.read_text())
+        if raw.get("schema_version") == self.SCHEMA_VERSION and isinstance(raw.get("entries"), dict):
+            return raw["entries"]
+        # V1 stored key -> actions only. Preserve replayability while marking provenance unknown.
+        self._loaded_legacy = True
+        return {key: {"actions": actions, "metadata": {"legacy": True, "usage": {}}} for key, actions in raw.items()}
+
+    def _write(self) -> None:
+        payload = {"schema_version": self.SCHEMA_VERSION, "entries": self._entries}
+        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.cache_path.with_suffix(self.cache_path.suffix + ".tmp")
+        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        temporary.replace(self.cache_path)
+
+    @staticmethod
+    def _add_usage(target: dict[str, float], usage: dict) -> None:
+        for name, value in usage.items():
+            if isinstance(value, (int, float)):
+                target[name] = target.get(name, 0) + value
 
     def _key(self, state: AgentState, max_actions: int) -> str:
         raw = json.dumps({"state_hash": state.state_hash, "model": self.model, "prompt_version": self.prompt_version, "seed": self.seed, "max_actions": max_actions}, sort_keys=True)
@@ -49,20 +82,48 @@ class CachedPlanner:
 
     async def propose_actions(self, state: AgentState, max_actions: int = 5) -> list[CandidateAction]:
         key = self._key(state, max_actions)
-        if key in self._items:
+        if key in self._entries:
             self.cache_hits += 1
             self._last_usage = {}
-            return [CandidateAction.model_validate(item) for item in self._items[key]]
+            entry = self._entries[key]
+            if key not in self._accounted_keys:
+                metadata = entry.get("metadata", {})
+                usage = metadata.get("usage", {})
+                if metadata.get("legacy") or not usage:
+                    self.unknown_usage_entries += 1
+                else:
+                    self._add_usage(self.replayed_usage, usage)
+                self._accounted_keys.add(key)
+            return [CandidateAction.model_validate(item) for item in entry["actions"]]
         self.cache_misses += 1
+        started = time.perf_counter()
         actions = await self.planner.propose_actions(state, max_actions)
+        latency_ms = (time.perf_counter() - started) * 1000
         self._last_usage = getattr(self.planner, "last_usage", {})
-        for name, value in self._last_usage.items():
-            if isinstance(value, (int, float)):
-                self.total_usage[name] = self.total_usage.get(name, 0) + value
-        self._items[key] = [a.model_dump(mode="json") for a in actions]
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(self._items, indent=2, sort_keys=True) + "\n")
+        self._add_usage(self.fresh_usage, self._last_usage)
+        self._accounted_keys.add(key)
+        self._entries[key] = {
+            "actions": [a.model_dump(mode="json") for a in actions],
+            "metadata": {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "provider": self.provider,
+                "model": self.model,
+                "prompt_version": self.prompt_version,
+                "seed": self.seed,
+                "max_actions": max_actions,
+                "state_hash": state.state_hash,
+                "latency_ms": latency_ms,
+                "usage": self._last_usage,
+            },
+        }
+        self._write()
         return actions
+
+    @property
+    def total_usage(self) -> dict[str, float]:
+        total = dict(self.fresh_usage)
+        self._add_usage(total, self.replayed_usage)
+        return total
 
     @property
     def last_usage(self) -> dict:

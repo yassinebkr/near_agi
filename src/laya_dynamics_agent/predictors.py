@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 
@@ -18,13 +19,31 @@ def compact_state(state: AgentState, action: CandidateAction) -> dict[str, Any]:
     }
 
 
+def resolve_laya_device(requested: str | None = None, torch_module: Any | None = None) -> str:
+    policy = (requested or os.getenv("LAYA_DEVICE", "auto")).strip().lower()
+    if policy not in {"auto", "cuda", "cpu"}:
+        raise ValueError("LAYA_DEVICE must be one of: auto, cuda, cpu")
+    if policy == "cpu":
+        return "cpu"
+    if torch_module is None:
+        import torch as torch_module
+    if torch_module.cuda.is_available():
+        return "cuda"
+    if policy == "cuda":
+        torch_version = getattr(torch_module, "__version__", "unknown")
+        cuda_version = getattr(getattr(torch_module, "version", None), "cuda", None)
+        raise RuntimeError(f"LAYA_DEVICE=cuda but CUDA is unavailable (torch={torch_version}, torch_cuda={cuda_version}). Run `lda doctor --require-cuda`.")
+    return "cpu"
+
+
 class LayaPredictor:
     """Thin adapter over the current Laya typed-decision API."""
 
-    def __init__(self, checkpoint: str = "laya", **load_kwargs: Any) -> None:
+    def __init__(self, checkpoint: str = "laya", *, device: str | None = None, **load_kwargs: Any) -> None:
         import laya
+        self.device = resolve_laya_device(device)
         started = time.perf_counter()
-        self.agent = laya.load(checkpoint, **load_kwargs)
+        self.agent = laya.load(checkpoint, device=self.device, **load_kwargs)
         self.load_time_ms = (time.perf_counter() - started) * 1000
         self.checkpoint = checkpoint
 

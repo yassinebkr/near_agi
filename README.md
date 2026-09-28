@@ -2,6 +2,8 @@
 
 Research POC asking whether a local, specialised Laya transition predictor can improve a GPT planner over GPT-only. It predicts typed properties of candidate transitions; it is not an AGI framework, a world simulator, or a claim that two models are inherently better than one.
 
+For the broader research motivation, see [Toward an Agent with an Abstract Dynamics Model](AGI_WORLD_MODEL_LAYA_SUMMARY.md).
+
 ```mermaid
 flowchart LR
   S[Compact state] --> G[GPT planner]
@@ -38,6 +40,7 @@ The CLI loads the project-root `.env` automatically. Variables explicitly export
 
 The sandbox is an in-process deterministic web abstraction with three task templates, primary/secondary sources, contradictions, and a simulated irreversible action. The benchmark has a genuine direct-action control; candidate-based heuristic and Laya arms replay cached candidate lists for every identical state. Complete transitions go to `data/trajectories.sqlite3` and `logs/runs/<run_id>/events.jsonl`; reports go to `reports/`. See [implementation plan](docs/IMPLEMENTATION_PLAN.md), [Laya audit](docs/LAYA_AUDIT.md), and [evaluation protocol](docs/EVALUATION_PROTOCOL.md).
 See also [compute strategy](docs/COMPUTE_STRATEGY.md): Phase 1 inference stays local; Nebius is reserved for explicitly authorized fine-tuning/post-training.
+For reproducible GPU campaigns, follow the fail-closed [CUDA setup](docs/CUDA_SETUP.md).
 Machine-specific commands are kept in [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHASE1_COMMANDS.md), outside the portable quickstart.
 
 Milestone 1 currently provides the reliable end-to-end loop, direct-GPT and candidate-selector controls, candidate caching, three deterministic tasks, the real Laya adapter, storage, loop guards, token/latency telemetry, and aggregate reporting. The three-task smoke suite is still an engineering validation, not evidence for the research hypothesis; the full protocol requires held-out templates and the sample sizes defined in the evaluation protocol.

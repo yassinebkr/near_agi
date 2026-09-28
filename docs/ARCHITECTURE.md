@@ -16,4 +16,3 @@ flowchart TD
 ```
 
 The compact state—not raw DOM—is supplied to both planner and predictor. `navigate`, `answer`, and `observe` are the only Milestone 1 tools. Environment mutation stays simulated.
-

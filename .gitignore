@@ -16,3 +16,5 @@ checkpoints/*
 !reports/.gitkeep
 !checkpoints/.gitkeep
 
+/codex_prompt_laya_dynamics_agent.md
+/agi_world_model_laya_summary.md
