@@ -93,6 +93,10 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
     try:
         for seed in seeds:
             cached.seed = seed
+            if hasattr(generator, "seed"):
+                generator.seed = seed
+            if hasattr(direct, "seed"):
+                direct.seed = seed
             for task_id in task_ids:
                 for mode, planner, predictor, policy in configs:
                     if shutdown.event.is_set():

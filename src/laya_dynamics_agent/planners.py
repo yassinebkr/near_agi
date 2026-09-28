@@ -167,6 +167,7 @@ class OpenRouterPlanner:
             headers["HTTP-Referer"] = referer
         self.client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1", default_headers=headers)
         self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-sol")
+        self.seed = 0
         self.prompt = Path(prompt_path).read_text()
         self.last_usage: dict = {}
         self.last_latency_ms = 0.0
@@ -175,6 +176,7 @@ class OpenRouterPlanner:
         started = time.perf_counter()
         response = await self.client.chat.completions.create(
             model=self.model,
+            seed=self.seed,
             messages=[{"role": "system", "content": self.prompt}, {"role": "user", "content": "STATE:\n" + state.canonical_json() + f"\nReturn JSON with at most {max_actions} actions."}],
             response_format={"type": "json_schema", "json_schema": {"name": "candidate_actions", "strict": True, "schema": {
                 "type": "object", "properties": {"actions": {"type": "array", "minItems": 1, "maxItems": max_actions, "items": _ACTION_SCHEMA}},
@@ -262,12 +264,13 @@ class OpenRouterDirectPlanner:
             headers["HTTP-Referer"] = referer
         self.client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1", default_headers=headers)
         self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-sol")
+        self.seed = 0
         self.last_usage: dict = {}
         self.last_latency_ms = 0.0
 
     async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
         started = time.perf_counter()
-        response = await self.client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_schema", "json_schema": {"name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}}, extra_body={"provider": {"require_parameters": True}})
+        response = await self.client.chat.completions.create(model=self.model, seed=self.seed, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_schema", "json_schema": {"name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}}, extra_body={"provider": {"require_parameters": True}})
         self.last_latency_ms = (time.perf_counter() - started) * 1000
         self.last_usage = response.usage.model_dump() if response.usage else {}
         content = response.choices[0].message.content

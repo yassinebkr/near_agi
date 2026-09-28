@@ -209,7 +209,7 @@ def main() -> None:
     demo.add_argument("--debug", action="store_true", help="Show full tracebacks")
     add_planner_arguments(demo)
     bench = sub.add_parser("benchmark")
-    bench.add_argument("--suite", default="smoke", choices=["smoke", "challenge"])
+    bench.add_argument("--suite", default="smoke", choices=["smoke", "challenge", "final"])
     bench.add_argument("--with-laya", action="store_true")
     bench.add_argument("--seeds", default="0", help="Comma-separated deterministic seeds, e.g. 0,1,2")
     bench.add_argument("--fresh-candidate-cache", action="store_true", help="Use a new campaign-scoped candidate cache without deleting existing caches")

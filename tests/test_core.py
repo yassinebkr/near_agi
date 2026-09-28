@@ -1,4 +1,5 @@
 import asyncio
+from collections import Counter
 from pathlib import Path
 from laya_dynamics_agent.benchmark import run_benchmark_suite
 from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
@@ -61,9 +62,29 @@ def test_all_sandbox_tasks_are_solvable(tmp_path: Path):
 
 
 def test_challenge_suite_covers_all_tasks_and_multiple_templates():
-    assert SUITES["challenge"] == tuple(TASKS)
+    assert SUITES["challenge"] == tuple(task_id for task_id in TASKS if not task_id.startswith("final-"))
     assert len(SUITES["challenge"]) == 9
     assert len({TASKS[task_id]["template_id"] for task_id in SUITES["challenge"]}) >= 6
+
+
+def test_final_suite_is_frozen_and_template_held_out():
+    final_ids = SUITES["final"]
+    counts = Counter(TASKS[task_id]["template_id"] for task_id in final_ids)
+    development_templates = {TASKS[task_id]["template_id"] for task_id in SUITES["challenge"]}
+    assert len(final_ids) == 90
+    assert set(counts.values()) == {30}
+    assert set(counts).isdisjoint(development_templates)
+
+
+def test_final_dynamic_primary_page_and_answer():
+    task_id = "final-security-029"
+    task = TASKS[task_id]
+    env = SandboxWebEnvironment()
+    env.reset(task_id)
+    transition = env.step(CandidateAction(action_id="primary", tool="navigate", args={"path": task["primary_path"]}))
+    assert transition.after.unknowns == []
+    transition = env.step(CandidateAction(action_id="answer", tool="answer", args={"value": f"The minimum safe firmware is {task["answer"]}."}))
+    assert transition.after.success is True
 
 
 def test_candidate_cache_replays_identical_actions(tmp_path: Path):

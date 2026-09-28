@@ -37,6 +37,10 @@ PAGES.update({
     "/relay": Page("Orion Relay datasheet", "Official datasheet: maximum operating temperature is 85 C.", "primary"),
 })
 
+from .final_tasks import FINAL_TASKS
+
+TASKS.update(FINAL_TASKS)
+
 
 PAGES.update({
     "/pump-sheet": Page("Atlas Pump pressure sheet", "Official engineering sheet: maximum outlet pressure is 240 kPa.", "primary"),
@@ -58,7 +62,8 @@ TASKS.update({
 
 SUITES = {
     "smoke": ("voltage-001", "warranty-001", "temperature-001"),
-    "challenge": tuple(TASKS),
+    "challenge": tuple(task_id for task_id in TASKS if not task_id.startswith("final-")),
+    "final": tuple(FINAL_TASKS),
 }
 
 def answer_matches(task_id: str, value: str) -> bool:
@@ -115,10 +120,14 @@ class SandboxWebEnvironment:
             error = "tool_not_allowed"
         elif action.tool == "navigate":
             path = str(action.args.get("path", ""))
-            if path not in PAGES:
-                error = "unknown_path"
-            else:
+            if self._task and path == self._task["primary_path"] and "primary_text" in self._task:
+                page = Page(self._task["primary_title"], self._task["primary_text"], "primary")
+            elif path in PAGES:
                 page = PAGES[path]
+            else:
+                page = None
+                error = "unknown_path"
+            if page is not None:
                 text = self._task[f"{path[1:]}_text"] if self._task and path in {"/forum", "/old"} else page.text
                 after.path, after.page_title, after.page_text = path, page.title, text
                 after.observations.append(Observation(source_id=path, title=page.title, path=path, text=text, source_kind=page.kind))
