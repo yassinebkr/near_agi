@@ -14,8 +14,8 @@ class DeterministicPlanner:
     """Fixture planner for reproducible smoke tests; it is not a GPT result."""
 
     async def propose_actions(self, state: AgentState, max_actions: int = 5) -> list[CandidateAction]:
-        task_answers = {"voltage-001": ("/manufacturer", "15 V"), "warranty-001": ("/warranty", "3 years"), "temperature-001": ("/relay", "85 C")}
-        primary_path, answer = task_answers[state.task_id]
+        from .sandbox import TASKS
+        primary_path, answer = TASKS[state.task_id]["primary_path"], TASKS[state.task_id]["answer"]
         if state.path == primary_path and not state.unknowns:
             items = [CandidateAction(action_id="answer-primary", tool="answer", args={"value": answer}, rationale_short="Answer from primary source")]
         else:
@@ -201,7 +201,8 @@ class DeterministicDirectPlanner:
     last_usage: dict = {}
 
     async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
-        primary, answer = {"voltage-001": ("/manufacturer", "15 V"), "warranty-001": ("/warranty", "3 years"), "temperature-001": ("/relay", "85 C")}[state.task_id]
+        from .sandbox import TASKS
+        primary, answer = TASKS[state.task_id]["primary_path"], TASKS[state.task_id]["answer"]
         if state.unknowns:
             return [CandidateAction(action_id="direct-primary", tool="navigate", args={"path": primary}, rationale_short="Gather primary evidence")]
         return [CandidateAction(action_id="direct-answer", tool="answer", args={"value": answer}, rationale_short="Answer from gathered evidence")]

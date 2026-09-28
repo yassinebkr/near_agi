@@ -7,7 +7,7 @@ from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
 from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, resolve_laya_device
 from laya_dynamics_agent.runner_impl import run_episode
-from laya_dynamics_agent.sandbox import SandboxWebEnvironment, TASKS, answer_matches
+from laya_dynamics_agent.sandbox import SUITES, SandboxWebEnvironment, TASKS, answer_matches
 from laya_dynamics_agent.storage_v2 import TrajectoryStore
 
 def test_state_hash_is_stable():
@@ -60,6 +60,12 @@ def test_all_sandbox_tasks_are_solvable(tmp_path: Path):
         store.close()
 
 
+def test_challenge_suite_covers_all_tasks_and_multiple_templates():
+    assert SUITES["challenge"] == tuple(TASKS)
+    assert len(SUITES["challenge"]) == 9
+    assert len({TASKS[task_id]["template_id"] for task_id in SUITES["challenge"]}) >= 6
+
+
 def test_candidate_cache_replays_identical_actions(tmp_path: Path):
     state = SandboxWebEnvironment().reset("voltage-001")
     cache = CachedPlanner(DeterministicPlanner(), tmp_path / "candidates.json", seed=7)
@@ -79,7 +85,7 @@ def test_benchmark_report_has_real_direct_arm_and_aggregate(tmp_path: Path, monk
     monkeypatch.chdir(tmp_path)
     report = asyncio.run(run_benchmark_suite(include_laya=False, provider="deterministic", model=None, shutdown=Shutdown(), seeds=(0,)))
     assert set(report["aggregate"]["modes"]) == {"direct_gpt", "candidates_heuristic"}
-    assert report["aggregate"]["episodes"] == len(TASKS) * 2
+    assert report["aggregate"]["episodes"] == len(SUITES["smoke"]) * 2
     assert report["prompt_versions"] == {"direct": "direct-v001", "candidates": "planner-v001"}
     assert (tmp_path / "reports/latest/metrics.json").exists()
 

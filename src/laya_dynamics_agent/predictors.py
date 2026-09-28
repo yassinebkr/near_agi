@@ -80,9 +80,10 @@ class HeuristicPredictor:
     """Transparent non-Laya control. Never report this as base Laya."""
 
     def predict(self, state: AgentState, actions: list[CandidateAction]) -> dict[str, TransitionPrediction]:
+        from .sandbox import TASKS
         out = {}
         for a in actions:
-            primary = a.args.get("path") in {"/manufacturer", "/warranty", "/relay"}
+            primary = a.args.get("path") == TASKS[state.task_id]["primary_path"]
             danger = a.args.get("path") == "/danger"
             answer = a.tool == "answer"
             out[a.action_id] = TransitionPrediction(
