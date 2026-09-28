@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import json
 import random
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -106,7 +107,9 @@ async def build_dataset(output: Path, planner: Any, *, seed: int = 20260930,
         "created_at": datetime.now(timezone.utc).isoformat(), "splits": {},
     }
     questions = LayaPredictor.questions()
+    started = time.monotonic()
     for split, count in sizes.items():
+        print(f"[v2bis] split={split} | groups={count} | anchors/group={len(ANCHORS)}", flush=True)
         temporary = output / f"{split}.jsonl.tmp"
         final = output / f"{split}.jsonl"
         rows = 0
@@ -157,6 +160,16 @@ async def build_dataset(output: Path, planner: Any, *, seed: int = 20260930,
                         errors[transition.error or "none"] += 1
                         for prop in PROPERTIES:
                             positives[prop] += float(getattr(transition.observed, prop)) > 0
+                completed = index + 1
+                if completed == 1 or completed == count or completed % 5 == 0:
+                    usage = getattr(planner, "total_usage", {})
+                    cost = float(usage.get("cost", 0.0))
+                    print(
+                        f"[v2bis] split={split} | group={completed}/{count} | rows={rows} | "
+                        f"cache={getattr(planner, 'cache_hits', 0)} hit/{getattr(planner, 'cache_misses', 0)} miss | "
+                        f"cost=${cost:.4f} | elapsed={time.monotonic() - started:.1f}s",
+                        flush=True,
+                    )
         temporary.replace(final)
         minimum_rows = count * len(ANCHORS) * min(4, max_actions)
         missing_tools = {"navigate", "answer", "observe"} - set(tools)
@@ -173,6 +186,7 @@ async def build_dataset(output: Path, planner: Any, *, seed: int = 20260930,
             "tool_rows": dict(tools), "transition_errors": dict(errors),
             "sha256": hashlib.sha256(final.read_bytes()).hexdigest(), "bytes": final.stat().st_size,
         }
+        print(f"[v2bis] split={split} complete | rows={rows} | questions={rows * len(PROPERTIES)}", flush=True)
     split_groups = [set(json.loads(line)["scenario_group_id"] for line in
                         (output / metadata["path"]).read_text().splitlines())
                     for metadata in manifest["splits"].values()]
