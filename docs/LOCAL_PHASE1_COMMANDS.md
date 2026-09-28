@@ -5,7 +5,7 @@ These commands use `/home/kwestog/Documents/code/near_agi` and the downloaded ch
 ```bash
 cd /home/kwestog/Documents/code/near_agi
 
-mkdir -p /mnt/fast-ssd/laya-dynamics-agent/.venv
+mkdir -p /mnt/fast-ssd/laya-dynamics-agent
 mkdir -p /mnt/fast-ssd/uv-cache
 
 UV_PROJECT_ENVIRONMENT=/mnt/fast-ssd/laya-dynamics-agent/.venv \
