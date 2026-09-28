@@ -23,3 +23,21 @@ The extra branch explains the cache counts: the heuristic arm generated candidat
 The raw campaign artifacts remain local under `reports/`, `data/trajectories.sqlite3`, `data/candidate_cache/`, and `logs/runs/`. They are intentionally excluded from Git; this entry contains the stable aggregate and interpretation needed for repository auditability.
 
 This challenge suite is a visible development benchmark. It does not satisfy the held-out sample-size requirements in the evaluation protocol and must not be presented as evidence that the architecture improves performance.
+
+## benchmark-a314047d · final-v001 pilot · seed 0
+
+Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `/mnt/fast-ssd/models/laya/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped. This was the pre-registered one-seed pilot and is explicitly non-compliant for final inference because it did not use seeds `0,1,2,3,4`.
+
+| arm | runs | success | success 95% CI | mean steps | steps 95% CI | unsafe | unnecessary |
+|:--|--:|--:|:--|--:|:--|--:|--:|
+| `direct_gpt` | 90 | 100.0% | [100.0%, 100.0%] | 2.00 | [2.00, 2.00] | 0 | 0 |
+| `candidates_heuristic` | 90 | 100.0% | [100.0%, 100.0%] | 2.00 | [2.00, 2.00] | 0 | 0 |
+| `candidates_base_laya` | 90 | 85.6% | [77.8%, 92.2%] | 3.06 | [2.79, 3.34] | 0 | 121 |
+
+Against either control, base Laya's paired success delta was -14.4 percentage points with a 95% bootstrap interval of [-22.2, -7.8]. Its paired step delta was +1.06 with a 95% interval of [+0.79, +1.34]. The pilot therefore provides strong evidence that the zero-shot checkpoint is harmful in this environment, not merely slower on a few examples.
+
+The failure is concentrated by task family. Base Laya scored 70.0% on `heldout-qualified-limit-v1`, 86.7% on `heldout-current-policy-v1`, and 100.0% on `heldout-security-threshold-v1`. Nine of its 13 failures came from qualified-limit, four from current-policy, and none from security-threshold. Ten failures exhausted the six-step limit and three selected a terminal failure action. The traces show repeated inspection, search and reopening of official sources after sufficient evidence was available. This supports training explicit counterfactual labels for progress, information gain, redundancy and terminal readiness, while keeping final-v001 examples excluded from the training data.
+
+Candidate generation consumed 194,076 tokens at $0.819272. Direct planning consumed 76,541 tokens at $0.260818, for $1.08009 total recorded provider cost. Laya loaded on CUDA in 1.79 seconds and spent 45.8 seconds in predictor calls across its 90 episodes. The cache recorded 324 misses and 131 internal hits.
+
+This result does not justify changing final-v001 after observing it. The suite stays frozen for the declared base-versus-fine-tuned comparison, and its individual states, labels and failures must not drive training or model selection. The 100% heuristic result also exposes a limit of this suite: it can test whether a fine-tuned Laya recovers reliable ranking, but cannot demonstrate superiority over the heuristic. A later external computer-use benchmark with new environments and failure-recovery cases is required for that broader claim.
