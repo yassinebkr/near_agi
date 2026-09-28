@@ -37,7 +37,7 @@ Every episode records campaign/run/task/template identifiers, seed, provider, ex
 - `predictor_reported_ms`: sum of per-action timings reported inside the predictor.
 - `policy_ms` and `environment_ms`: explicit selection and environment timings. `environment_ms` includes reset.
 - `selector_wall_ms`: predictor plus policy wall time for candidate-based arms.
-- `framework_overhead_ms`: non-negative remainder after subtracting planner, predictor, policy and environment wall components.
+- `framework_overhead_ms`: non-negative remainder after subtracting planner, predictor, policy and environment wall components. It includes trajectory persistence and orchestration overhead.
 
 Candidate generation and lookup are subdivisions of planner wall time and are never added to the component budget. Every candidate step records `candidate_source` as `fresh` or `cache`, its cache key, generation provider/model and original generation latency when available. Episodes report fresh and replay counts and classify the candidate path as cold, warm or mixed.
 

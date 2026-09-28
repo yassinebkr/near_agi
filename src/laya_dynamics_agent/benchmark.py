@@ -310,8 +310,12 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
         lines.append(f"| {name} | {comparison['pairs']} | {comparison['pairs_both_success']} | "
                      f"{delta_text} | {ratio_text} | {ratio_ci_text} | "
                      f"{effective['pairs_complete']} | {effective_ratio_text} |")
-        if name == "candidates_base_laya_vs_direct_gpt":
-            lines.extend(["", "### Laya versus direct latency-ratio distribution", "", "Observed warm/cold mix: `" + json.dumps(comparison["latency_ratio_distribution"], sort_keys=True) + "`", "", "Reconstructed end-to-end (complete provenance only): `" + json.dumps(effective["latency_ratio_distribution"], sort_keys=True) + "`"])
+    laya_comparison = report["aggregate"]["paired_comparisons"].get("candidates_base_laya_vs_direct_gpt")
+    if laya_comparison:
+        effective = laya_comparison["effective_end_to_end"]
+        lines.extend(["", "### Laya versus direct latency-ratio distribution", "",
+                      "Observed warm/cold mix: `" + json.dumps(laya_comparison["latency_ratio_distribution"], sort_keys=True) + "`", "",
+                      "Reconstructed end-to-end (complete provenance only): `" + json.dumps(effective["latency_ratio_distribution"], sort_keys=True) + "`"])
     summary = "\n".join(lines) + "\n"
     (root / "summary.md").write_text(summary)
     (latest / "summary.md").write_text(summary)

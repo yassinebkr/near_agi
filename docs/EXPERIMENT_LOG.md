@@ -10,6 +10,14 @@ The campaigns below predate durable episode wall-clock and cache-provenance tele
 
 Terminal observations suggested substantial heterogeneity: some base-Laya episodes appeared two to three times slower or failed, while others appeared roughly three to six times faster than direct GPT. Those observations motivated the current instrumentation, but they cannot support a retrospective speedup distribution. Historical values remain unchanged, and no definitive end-to-end latency conclusion is drawn from them. New campaigns separately report observed wall time, fresh/replayed provenance and reconstructed effective end-to-end latency when original generation timing is complete.
 
+## benchmark-9407b961 · latency instrumentation validation
+
+Date: 2026-09-28. Provider: deterministic fixture. Suite: smoke. Seed: 0. Device: CUDA for base Laya. This nine-episode run validates telemetry only and carries no claim about GPT or Laya speed.
+
+The campaign recorded seven fresh candidate generations and four cache replays. All nine SQLite run rows contain `summary_json`, every transition records candidate provenance and component timings, and every episode budget closes as `wall_clock_ms = planner_wall_ms + predictor_wall_ms + policy_ms + environment_ms + framework_overhead_ms` within floating-point precision. Reconstructed latency was complete for all six candidate-based episodes. Time-to-success correctly excluded the two failed Laya pairs.
+
+The deterministic fixture makes provider generation nearly instantaneous, while synchronous SQLite/JSONL persistence appears as roughly 129–144 ms mean framework overhead per episode. This is expected and exposes the measurement boundary rather than a timing defect. The run also contains one mixed Laya path caused by a divergent state, which validates simultaneous fresh and replay accounting. No speedup conclusion is drawn.
+
 ## benchmark-795a36f9 · challenge · seed 0
 
 Date: 2026-09-28. Provider: OpenRouter. Model: `openai/gpt-5.6-sol`. Laya checkpoint: `/mnt/fast-ssd/models/laya/base-english`. Device: CUDA. Candidate cache: fresh and campaign-scoped.
