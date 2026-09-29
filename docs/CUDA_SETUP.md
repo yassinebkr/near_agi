@@ -75,3 +75,9 @@ Record the exact PyTorch version, CUDA build, GPU name, Laya load time, and pred
 - `LAYA_DEVICE=auto`: exploratory mode; selects CUDA when available and otherwise reports CPU.
 
 Every benchmark report records the resolved device, checkpoint, and model load time under `laya_runtime`.
+
+## Nebius execution record
+
+The v2bis cloud run validated a separate H100 environment with PyTorch `2.6.0+cu124`. Full training peaked at 8.82 GiB reserved VRAM. Runtime evaluation loaded base and fine-tuned checkpoints concurrently and passed smoke and challenge gates. These measurements do not replace the local RTX 3070 Ti reference because latency comparisons are hardware-specific.
+
+The final campaign is currently paused and evacuated. Recreating the H100 environment requires the preflight and restoration steps in [Nebius post-training and recovery runbook](NEBIUS_POSTTRAIN_RUNBOOK.md); it does not require rebuilding the local CUDA environment.

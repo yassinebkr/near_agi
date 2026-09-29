@@ -1,33 +1,32 @@
 # Compute strategy
 
-Local VRAM is a routing constraint, not a blocker for Milestone 2. The training pipeline must produce the same dataset manifest, configuration, seeds, metrics, and checkpoint manifest regardless of execution backend.
+Hardware placement must preserve the same datasets, prompts, seeds, caches, checkpoints, and evaluation rules. Compute changes execution cost and throughput. It does not change the experimental contract.
 
-## Separate execution scopes
+## Validated execution scopes
 
-1. **Phase 1 inference and benchmarks: local only** — run the complete Laya checkpoint on the RTX 3070 Ti and record latency, VRAM and RAM. Nebius is not an inference backend for this project.
-2. **Milestone 2 training smoke: local** — validate preprocessing, loss, one optimizer step, checkpoint writing and reload on the smallest useful sample.
-3. **Milestone 2 full fine-tuning/post-training: Nebius when required** — reuse BeyondVRAM's measured cloud-training lifecycle when the reference run does not fit locally or would take unreasonably long. Provisioning remains an explicit, user-authorized billable action.
+- **Local development:** deterministic tests, dataset audits, CUDA inference smoke, report inspection, and checkpoint loading use the RTX 3070 Ti 8 GiB machine.
+- **Nebius training:** the completed v2bis full-parameter run used one H100 80 GB because it provided an available and economical path for the frozen recipe.
+- **Nebius runtime evaluation:** smoke, challenge, and the resumable final campaign ran beside the trained checkpoint on the same H100. This is now an explicit evaluation backend, and every report records its device and timing context.
+- **Offline storage:** complete cloud workspaces are evacuated with rsync and verified before VM and disk deletion. Large datasets, caches, reports, and checkpoints remain outside Git.
 
-BeyondVRAM also contains local inference/offload research, but that work is not presented as a Laya training backend and is not the reason Nebius is included here.
+Local and Nebius latency measurements belong to different hardware contexts. They may be compared within a campaign when all arms share that context. They must not be combined as if hardware were identical.
 
 ## Portability contract
 
-Every job consumes a frozen dataset hash plus `configs/train/*.yaml` and emits:
+Every training job consumes a frozen dataset manifest and training config. It records:
 
-- base repository, revision, and weight SHA-256;
-- source Git commit and dirty-state flag;
-- exact Python, Laya, PyTorch, CUDA, driver, and container/image versions;
-- hardware topology, duration, peak VRAM/RAM, and failure/OOM record;
-- seed, optimizer, precision, batch/accumulation, checkpointing and offload settings;
-- checkpoint SHA-256, calibration temperatures, raw validation/calibration/test metrics;
-- provider and instance type, with cost when a cloud backend is used.
+- source revision and dirty-state flag;
+- base checkpoint and dataset hashes;
+- Python, Laya, PyTorch, CUDA, and driver versions;
+- hardware, duration, throughput, peak VRAM, and interruption state;
+- seed, precision, batch, accumulation, checkpoint, and optimizer settings;
+- exported checkpoint hash, calibration, evaluation, and gate reports;
+- provider usage and cloud cost when applicable.
 
-Cloud output must be copied back to `${LDA_STORAGE}/` and verified by checksum before the instance is stopped. Secrets, provider credentials, generated datasets, and large checkpoints never enter Git.
+Every runtime campaign additionally records exact provider/model, prompt versions, task-manifest hash, Laya checkpoints, seeds, cache provenance, component latency, and atomic resume state.
 
-## Decision rule
+## Current state
 
-First reproduce a tiny official-style training step locally. Then estimate the complete run from measured memory and throughput. Use Nebius only for fine-tuning/post-training if the local run is impossible or its projected wall time is unreasonable. Training location must not change splits or evaluation criteria. All inference evaluation remains local unless a future protocol explicitly introduces and justifies another inference environment.
+The v2bis training and runtime transfer gates are complete. `final-v001` is paused after 705 of 1,800 episodes because the OpenRouter key budget was exhausted. The cloud workspace and model were evacuated. No GPU VM is required until API budget is available to resume the same campaign.
 
-## Audited integration
-
-BeyondVRAM was audited at commit `28d0a005b72f46b1dc360fcda1afc010f2766e14`; see `docs/BEYONDVRAM_AUDIT.md`. For Nebius we reuse only its verified fine-tuning/post-training operations: persistent outputs, resumable checkpoints, SIGTERM handling, evacuation, cost tracking and teardown. We do not attribute any Nebius inference experiment to BeyondVRAM.
+Future compute is provisioned only after an explicit cost check and approval. A new backend must pass preflight and a small reproducibility comparison before it can replace a validated backend.

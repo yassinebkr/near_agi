@@ -48,7 +48,7 @@ LAYA_CHECKPOINT=/path/to/checkpoint \
 
 The CLI loads the project-root `.env` automatically. Shell variables take precedence. Git ignores `.env`, and the CLI fails explicitly when a requested provider is unavailable.
 
-For the exact CUDA installation and validation sequence, follow [CUDA setup](docs/CUDA_SETUP.md). Machine-specific paths belong in the ignored local guide described by [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHASE1_COMMANDS.md), not in portable documentation.
+For the exact CUDA installation and validation sequence, follow [CUDA setup](docs/CUDA_SETUP.md). The [portable local commands](docs/LOCAL_PHASE1_COMMANDS.md) keep machine-specific paths in shell variables or the ignored `.env` file.
 
 ## What the benchmark compares
 
@@ -76,6 +76,10 @@ The suites have distinct roles:
 
 The full experimental contract, gates, arms, paired statistics, and decision rule are defined in the [evaluation protocol](docs/EVALUATION_PROTOCOL.md). Historical campaigns and methodological corrections are preserved in the [experiment log](docs/EXPERIMENT_LOG.md).
 
+## Current experiment status
+
+The `laya-dynamics-v002bis` checkpoint completed training and calibration, passed the corrected offline promotion gate, and passed live four-arm smoke and challenge gates. The registered `final-v001` campaign is paused after 705 of 1,800 episodes because the OpenRouter budget was exhausted. Its checkpoint, candidate cache, logs, reports, databases, environment, and model were evacuated for exact resume. No final result is inferred from the incomplete prefix.
+
 ## Run with OpenRouter
 
 OpenRouter uses its own API key. The current reference model is `openai/gpt-5.6-sol`:
@@ -96,9 +100,9 @@ Provider fallback is disabled. OAuth is deferred to the later Shopifast-based au
 
 Long campaigns accept `--campaign-id ID`. Re-run the identical command with `--resume` to skip atomically checkpointed episodes and retain the campaign-scoped cache. The first `Ctrl+C` requests a graceful stop after the current atomic planner, predictor, or environment operation.
 
-## Final four-arm evaluation
+## Final four-arm evaluation contract
 
-Run the final suite only after the fine-tuned checkpoint passes both smoke and challenge runtime gates:
+The registered command shape is shown below for reproducibility:
 
 ```bash
 LAYA_DEVICE=cuda \
@@ -113,6 +117,8 @@ uv run lda benchmark \
 ```
 
 `final-v001` is single-use for the declared base-versus-fine-tuned comparison. Its task manifest, checkpoints, prompt versions, seeds, provider, model, and cache provenance are recorded in the report.
+
+The current campaign has already started. Do not run this command with a new cache. Restore and resume the archived campaign through the [Nebius runbook](docs/NEBIUS_POSTTRAIN_RUNBOOK.md).
 
 ## Reading latency correctly
 
@@ -136,7 +142,7 @@ Add `--json` for complete terminal JSON or `--debug` for full exception tracebac
 
 ## Post-training
 
-The current candidate is `laya-dynamics-v002bis`. GPT-5.6 Sol generated its action sets, each candidate was executed counterfactually on an independent simulator clone, and labels came from observed transitions. Action identifiers are excluded from model input and retained separately for audit.
+The promoted runtime candidate is `laya-dynamics-v002bis`. GPT-5.6 Sol generated its action sets, each candidate was executed counterfactually on an independent simulator clone, and labels came from observed transitions. Action identifiers are excluded from model input and retained separately for audit.
 
 The training design and promotion criteria are documented in the [Laya post-training plan](docs/LAYA_FINETUNING_PLAN.md). The operational cloud workflow is in the [Nebius runbook](docs/NEBIUS_POSTTRAIN_RUNBOOK.md). Paid resources and training require explicit approval. Training runs inside a logged `screen` session so the original human-readable output remains available alongside structured artifacts.
 

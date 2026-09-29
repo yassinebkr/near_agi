@@ -1,121 +1,136 @@
-# Nebius Laya post-training runbook
+# Nebius Laya post-training and recovery runbook
 
-## Scope
+## Current status
 
-This procedure runs domain post-training on one preemptible NVIDIA H100. It never creates Nebius resources. VM, disk and IP creation remain deliberate console actions because they are billable. Training follows Laya's published single-GPU RLCD recipe at pinned revision `9d955671415fc19f069b9cc998928075c1f255ec`.
+V2bis training, calibration, offline promotion, smoke, and challenge are complete. The frozen final campaign is paused after 705 of 1,800 episodes because the OpenRouter budget was exhausted. The complete cloud workspace was evacuated before VM and system-disk deletion.
+
+No Nebius resource is needed while the API budget remains unavailable. The next cloud action is restoration and exact benchmark resume, not retraining.
 
 ## Safety invariants
 
-- `final-v001` identifiers are rejected during generation and preprocessing.
-- Raw splits and resume checkpoints are bound to SHA-256 hashes.
-- Development templates are disjoint from training templates. Calibration receives no gradient updates.
-- Paid training requires `NEBIUS_TRAIN_APPROVED=YES`.
-- Atomic checkpoints are written to persistent storage every 600 seconds and on graceful interruption.
-- The VM shuts down after completion, failure or interruption when `AUTO_SHUTDOWN=1`.
-- A stopped VM can still incur storage and IP charges. Evacuate, verify, then delete every resource.
+- Nebius resources are created manually after an explicit price and budget check.
+- Use one H100-class CUDA VM with enough system-disk capacity for the restored workspace.
+- Keep public IPs, SSH keys, local backup paths, and credentials out of Git.
+- Transfer VM payloads only with `rsync`.
+- Run long jobs inside logged `screen` sessions.
+- Never regenerate final candidates or change the final campaign identifier.
+- Verify the evacuated copy before deleting any cloud resource.
+- Guest shutdown can precede the Nebius console state update. Confirm `STOPPED` in the control plane.
 
-Before restarting any paid VM, require green tests and a completed local validation benchmark whose report contains wall-clock, fresh/cache provenance, component timings, paired ratios and reconstruction-completeness fields. Record the gate summary before training.
+## Archived state required for resume
 
-## 1. Freeze the local dataset
+The restored `/data/laya-posttrain` tree must contain at least:
 
-```bash
-cd near_agi
-
-PYTHON_BIN="${PYTHON_BIN:-python}" \
-  scripts/build_dataset_v2bis.sh
-
-python -m json.tool configs/train/v002bis.dataset-manifest.json
+```text
+repo/reports/benchmark-v002bis-final/checkpoint.json
+repo/data/candidate_cache/openrouter-openai_gpt-5.6-sol-benchmark-v002bis-final.json
+repo/data/trajectories.sqlite3
+repo/logs/
+checkpoints/laya-dynamics-v002bis/model.safetensors
+base-english/model.safetensors
+venv/
 ```
 
-Dataset generation requires `OPENROUTER_API_KEY` and uses `openai/gpt-5.6-sol`. GPT generates five contrastive candidate actions at each reachable anchor state. Every candidate is executed on an independent simulator clone; GPT never supplies a label. The planned build uses 200/30/30/60 scenario groups and five anchors per group, approximately 1,600 planner calls and 48,000 labeled question sequences when every response contains five unique candidates. The exact committed manifest is authoritative.
+The benchmark checkpoint must report 705 completed episodes. The v2bis model SHA-256 is:
 
-Current and historical action identifiers are excluded from model input but retained in audit records. Scenario groups cannot cross splits, and development uses separate template families. Generation fails if tool or outcome diversity gates are not met. Do not freeze or stage the corpus until the manifest, usage, candidate cache and manual trajectory audit pass. Do not rebuild it after training begins.
+```text
+19eb33a1a2ad62e019325b29f3796b2e507fb4723ca6bd4ac22b3de726458fbf
+```
 
-## 2. Create resources manually
+`resume.pt` is not expected under the completed v2bis export. Benchmark recovery uses `checkpoint.json`. The large `laya-dynamics-v002/resume.pt` belongs to the interrupted v2 training and must never be copied into the v2bis directory.
 
-Check the live Nebius price immediately before creation. Create one preemptible H100 in `eu-north1` with an Ubuntu 24.04 NVIDIA image and a persistent 100 GiB system disk. This setup keeps the system disk after compute shutdown; create `/data/laya-posttrain` on that filesystem. A separate network disk is optional, not required.
+## Create and restore a VM
 
-The compute ceiling is $16 before tax. The console quote recorded on 2026-09-28 is $2.16 per hour for one H100. The configured six-hour maximum costs $12.96 and leaves $3.04 for bootstrap time and variance. Nebius billing is authoritative.
+Check the current Nebius price and available balance. Create an Ubuntu NVIDIA H100 VM with a system disk large enough for the complete workspace. A separate data disk is optional. The validated deployment used the persistent system disk directly.
 
-Do not create a reusable image or snapshot.
-
-## 3. Stage and preflight
-
-After a stopped VM is restarted, obtain its current status and public IP from Nebius before SSH. Keep the IP in a shell variable only. Never commit it. Verify or install the transfer and terminal tools on the VM, then stage from the local machine:
+Record the current public IP only in the shell:
 
 ```bash
 VM_HOST=USER@CURRENT_VM_IP
 SSH_KEY=/path/to/private_key
-
-ssh -i "$SSH_KEY" -o IdentitiesOnly=yes "$VM_HOST" '
-  if ! command -v rsync >/dev/null || ! command -v screen >/dev/null
-  then
-    sudo apt-get update
-    sudo apt-get install -y rsync screen
-  fi
-'
-
-RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
-  scripts/nebius_stage.sh "$VM_HOST"
+BACKUP_ROOT=/path/to/evacuated/laya-posttrain
 ```
 
-`nebius_stage.sh` transfers every payload with `rsync`; it does not use `scp` or archive streaming. SSH remains the interactive control channel for bootstrap and `screen`. Configure the SSH key explicitly as above or load it into `ssh-agent`.
-
-On the VM:
+Install the transfer and terminal tools if needed:
 
 ```bash
-ssh -i SSH_KEY -o IdentitiesOnly=yes USER@VM_IP
+ssh -i "$SSH_KEY" -o IdentitiesOnly=yes "$VM_HOST" '
+  sudo apt-get update
+  sudo apt-get install -y rsync screen
+  sudo mkdir -p /data/laya-posttrain
+  sudo chown "$USER":"$USER" /data/laya-posttrain
+'
+```
+
+Restore the complete workspace:
+
+```bash
+RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
+rsync -aH --partial "$BACKUP_ROOT/" "$VM_HOST:/data/laya-posttrain/"
+```
+
+Do not use `scp`, archive streaming, or a newly generated dataset.
+
+## Preflight
+
+```bash
+ssh -t -i "$SSH_KEY" -o IdentitiesOnly=yes "$VM_HOST"
 cd /data/laya-posttrain/repo
-scripts/nebius_bootstrap.sh
 scripts/nebius_preflight.sh
 ```
 
-Preflight verifies CUDA, at least 40 GiB VRAM, 50 GiB free disk, dataset hashes and the base checkpoint. It does not train.
-
-## 4. Three-step paid smoke
-
-After checking the live price and balance:
+Then verify:
 
 ```bash
-cd /data/laya-posttrain/repo
-NEBIUS_TRAIN_APPROVED=YES scripts/nebius_screen.sh smoke
-screen -r laya
+jq -r '[.status, (.results|length), .results[-1].run_id] | @tsv' \
+  reports/benchmark-v002bis-final/checkpoint.json
+
+sha256sum ../checkpoints/laya-dynamics-v002bis/model.safetensors
 ```
 
-The attached screen displays the original pipeline output. It labels preflight, preprocessing, training, calibration, evaluation and promotion-gate phases. Training progress is formatted as concise human-readable lines with step, epoch, loss, cross-entropy, throughput, peak VRAM and elapsed time. Detach without stopping the job with `Ctrl+A`, then `D`, and reattach later with `screen -r laya`.
+Require CUDA, the expected model hash, the frozen dataset hashes, the final cache, and exactly 705 completed episodes before spending API credit.
 
-The complete original terminal stream is also recorded under `/data/laya-posttrain/logs/smoke-*.log`. The structured `/data/laya-posttrain/checkpoints/laya-dynamics-v002bis/train-log.jsonl` remains the audit source. After the session finishes, require finite loss, safe peak VRAM and a valid `resume.pt`. This smoke deliberately pauses before calibration. Never copy or resume `/data/laya-posttrain/checkpoints/laya-dynamics-v002/resume.pt` into this directory: its dataset hash and model representation belong to the interrupted v2 run.
+## Resume the final campaign
 
-## 5. Production run
-
-The same output directory resumes the accepted smoke:
+Add sufficient OpenRouter credit or raise the key's total limit first. Keep the key in the process environment:
 
 ```bash
 cd /data/laya-posttrain/repo
 export OPENROUTER_API_KEY=your_key_here
 export OPENROUTER_MODEL=openai/gpt-5.6-sol
-NEBIUS_TRAIN_APPROVED=YES MAX_WALL_SECONDS=21600 scripts/nebius_screen.sh full
-screen -r laya
+export OPENROUTER_MAX_TOKENS=4096
+
+scripts/nebius_runtime_screen.sh
+screen -r laya-runtime
 ```
 
-The pipeline preprocesses once, trains four epochs, calibrates on the dedicated split, verifies the offline promotion gate, then runs checkpointed four-arm smoke and challenge gates. Only two passes unlock the single `final-v001` campaign. It writes `SHA256SUMS` and powers off after success, gate failure, interruption or error.
+Detach with `Ctrl+A`, then `D`. The launcher records the original human-readable stream under `/data/laya-posttrain/logs/runtime-*.log`.
 
-Each benchmark writes `reports/<campaign>/checkpoint.json` atomically after every completed episode. Re-running the full screen command resumes the fixed v2bis campaign, reuses its campaign-scoped candidate cache, skips completed episodes and restarts only an interrupted episode. The OpenRouter key remains in the process environment and is never written to a repository file or checkpoint.
+The runtime script rechecks smoke and challenge from their checkpoints, then resumes `benchmark-v002bis-final`. Completed episodes are printed as `checkpoint replay`. The first live request must retry episode 706. If the configuration differs from the saved checkpoint, resume fails closed.
 
-After preemption, attach the same disk to a compatible H100 VM, mount it at `/data`, and rerun the identical command. Dataset or seed mismatches fail closed.
+The launcher requests guest shutdown after success or failure. SSH can become unavailable before Nebius changes the instance state from `RUNNING` to `STOPPED`. Wait for the console transition before deciding that shutdown failed.
 
-## 6. Evacuate and teardown
+## Training procedure for a future independent recipe
 
-From the local machine:
+The original v2bis training commands remain available for audit:
 
 ```bash
-scripts/nebius_evacuate.sh ubuntu@VM_IP
+NEBIUS_TRAIN_APPROVED=YES scripts/nebius_screen.sh smoke
+NEBIUS_TRAIN_APPROVED=YES MAX_WALL_SECONDS=21600 scripts/nebius_screen.sh full
 ```
 
-Set `LAYA_EVACUATE_TO` to an external local storage directory. If it is unset, artifacts are verified under the ignored local `checkpoints/` directory.
+Do not run them for the current checkpoint. Any future training iteration requires a new dataset version, new checkpoint name, new hidden final suite, explicit budget approval, and an updated preregistration.
 
-After local verification, delete the VM, network disk, every image or snapshot, and any static public IP. Confirm that the Nebius project has no billable resources.
+## Evacuate and teardown
 
-## 7. Promotion
+Synchronize the complete workspace, not only the model:
 
-Evaluate base and fine-tuned checkpoints on the disjoint development set and visible challenge suite first. Promote only after lower transition error, fewer unnecessary actions, zero unsafe-action regression and the pre-registered development success threshold. Only then add the fine-tuned benchmark arm and run the single compliant `final-v001` comparison.
+```bash
+RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
+rsync -aH --partial "$VM_HOST:/data/laya-posttrain/" "$BACKUP_ROOT/"
+
+RSYNC_RSH="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
+rsync -aHnci "$VM_HOST:/data/laya-posttrain/" "$BACKUP_ROOT/"
+```
+
+The checksum dry run must report no differences. Verify the model hash, final checkpoint count, cache, logs, reports, and databases locally. Then delete the VM, system disk, snapshots, images, and static IPs. Confirm in Nebius that no billable resource remains.

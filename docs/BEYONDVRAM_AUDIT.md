@@ -2,30 +2,27 @@
 
 Source: https://github.com/yassinebkr/beyondvram
 
-Audited commit: `28d0a005b72f46b1dc360fcda1afc010f2766e14` (2026-09-28).
+Audited commit: `28d0a005b72f46b1dc360fcda1afc010f2766e14` on 2026-09-28.
 
-## Reusable work
+## Reused practices
 
-BeyondVRAM is directly relevant as an experimental and operations reference: it targets the same RTX 3070 Ti 8 GiB / 32 GiB RAM class, records failures rather than estimating them, pins artifacts, and contains a measured Nebius training workflow. Its Track 5 contributes useful patterns for this project:
+BeyondVRAM supplied the operational pattern for the Nebius work:
 
-- deterministic corpus filtering and held-out split discipline;
-- resumable training state (adapter, optimizer, scheduler and data cursor);
-- periodic and SIGTERM-triggered checkpoints for preemptible instances;
-- persistent/network-volume outputs and evacuation before teardown;
-- explicit cost, wall-time, environment and artifact reporting;
-- cloud gates and automatic shutdown to limit idle cost.
+- deterministic corpus manifests and held-out split discipline;
+- resumable optimizer, scheduler, RNG, and data-cursor state;
+- periodic and SIGTERM-triggered checkpoints;
+- persistent outputs and checksum verification before teardown;
+- explicit cost, wall-time, environment, and artifact reporting;
+- fail-closed gates and automatic guest shutdown.
 
-## Important boundary
+These practices were adapted to Laya's full-parameter RLCD training loop. The v2bis run used a persistent Nebius system disk, a logged `screen` session, ten-minute resumable checkpoints, a frozen dataset manifest, post-training calibration, offline promotion, runtime gates, and rsync evacuation.
 
-BeyondVRAM has two distinct bodies of work that must not be conflated. Its over-VRAM inference, quantization, placement and measurement experiments run locally. Separately, Nebius was used only for fine-tuning/post-training: a model-specific bf16 LoRA job on a large-VRAM GPU. No BeyondVRAM inference run on Nebius is claimed. The repository explicitly records its attempted local QLoRA path for a 30B model as infeasible on 32 GiB RAM because CPU-dispatched modules remained fp32.
+## Boundary
 
-Therefore it is not a drop-in Laya trainer or proof that Laya fine-tuning can spill transparently to NVMe. We reuse the research discipline, checkpoint/resume lifecycle and Nebius operations. Laya training itself must adapt the official Laya decision-head/RLCD notebook and be validated first with a one-step smoke run.
+BeyondVRAM's local over-VRAM inference work and its Nebius post-training work are separate. This project does not claim that Laya training spills transparently to NVMe, and it does not attribute a Nebius inference experiment to BeyondVRAM. The Laya objective, preprocessing, calibration, and checkpoint format come from the upstream Laya implementation.
 
-## Planned adaptation
+The interrupted v2 run and completed v2bis run confirmed that the reusable contribution is operational discipline rather than a drop-in trainer. Dataset representation and evaluation validity remained project-specific responsibilities.
 
-1. Keep Laya's official preprocessing, decision loss and temperature fitting.
-2. Port BeyondVRAM's time-based/SIGTERM checkpoint contract around that loop.
-3. Write all mutable cloud outputs to a persistent volume.
-4. Pin source, base checkpoint, dataset and container revisions.
-5. Run a tiny local training smoke before provisioning cloud compute.
-6. If local training is impractical, run the unchanged experiment on an explicitly authorized Nebius instance and evacuate verified artifacts to `${LDA_STORAGE}/`.
+## Outcome of the adaptation
+
+The completed v2bis training ran 5,648 updates and 46,371,505 tokens on one H100. It exported a standard Laya checkpoint, passed the corrected offline gate, then passed four-arm smoke and challenge runtime gates. The frozen final campaign is paused at 705 of 1,800 episodes because the OpenRouter budget was exhausted. Its complete state was evacuated before cloud teardown.

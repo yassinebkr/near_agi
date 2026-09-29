@@ -1,57 +1,58 @@
 # Implementation plan
 
-## Scope and experimental boundary
+## Current objective
 
-Milestone 1 answers one narrow question: does adding typed, per-candidate transition predictions improve decisions over the same candidate generator? The sandbox is the source of truth. Laya is removable and is never allowed to execute tools. No Shopify, JEV, latent rollout, or fine-tuning is in this milestone.
+The implemented POC tests whether a specialised Laya transition predictor can select GPT-generated actions more reliably than base Laya while preserving fast local selection. The sandbox is the source of transition truth. Laya predicts outcomes and never executes tools.
 
-## Architecture
+The active experiment is the registered four-arm `final-v001` campaign. It is paused at 705 of 1,800 episodes because the OpenRouter budget was exhausted. Its campaign checkpoint, candidate cache, logs, reports, databases, environment, and model have been evacuated for an exact future resume.
 
-`Planner -> candidate actions -> TransitionPredictor -> Policy -> Environment -> deterministic labels -> prediction errors -> SQLite + JSONL`.
+## Implemented system
 
-All boundaries are protocols. `USE_LAYA=0` selects the GPT-only policy without changing the environment, planner, runner, or storage. The initial sandbox is an in-process deterministic web abstraction: it has pages, concise observations, typed navigation/answer actions, source quality, contradictions, missing information, and simulated irreversible actions. This is deliberately smaller and more reproducible than Playwright; a browser adapter can later implement the same `Environment` protocol.
+- deterministic sandbox with typed `navigate`, `answer`, and `observe` actions;
+- direct GPT and GPT candidate-generation planners;
+- campaign-scoped candidate cache with generation provenance;
+- heuristic, base-Laya, and fine-tuned-Laya candidate selectors;
+- explicit utility policy and loop guards;
+- SQLite plus JSONL transition persistence;
+- atomic episode-level campaign checkpoints and resume;
+- component, selector, observed wall, and reconstructed end-to-end latency telemetry;
+- smoke, challenge, and frozen `final-v001` suites;
+- v2bis executed-counterfactual corpus, training, calibration, and promotion pipeline;
+- Nebius staging, preflight, `screen` logs, graceful checkpoints, evacuation, and shutdown.
 
-## Interfaces
+## Experimental boundary
 
-- `Planner.propose_actions(state, max_actions) -> list[CandidateAction]`
-- `TransitionPredictor.predict(state, actions) -> dict[action_id, TransitionPrediction]`
-- `Policy.select(state, actions, predictions) -> CandidateAction`
-- `Environment.reset(task) -> AgentState`; `step(action) -> Transition`
-- `TransitionLabeler.label(before, action, after, truth) -> ObservedProperties`
-- `TrajectoryStore` persists a reconstructable run and mirrors events to JSONL.
+`final-v001` contains 90 tasks from three held-out templates and uses seeds `0,1,2,3,4`. Four arms produce 1,800 planned episodes:
 
-## Data schemas
+1. `direct_gpt`
+2. `candidates_heuristic`
+3. `candidates_base_laya`
+4. `candidates_finetuned_laya`
 
-Pydantic v2 models use `schema_version="1.0"`, forbid unknown fields, and canonical JSON (`sorted keys`, compact separators) for SHA-256 state hashes. Actions contain a stable id, allowlisted tool, JSON arguments, and optional short rationale. Prediction values are bounded floats and preserve primitive/calibration metadata rather than claiming every raw score is a calibrated probability.
+Candidate-based arms share byte-equivalent lists for identical states. Direct GPT is generated independently. The final report must be complete and protocol-compliant before any research conclusion is made.
 
-## Laya strategy
-
-One batched `predict` call asks six typed questions for one candidate rendered with the compact state. Boolean properties use `noul` with explicit neutral model-facing labels; information gain can use an ordinal `score`, normalized only for policy utility and retained with its raw scale. Each candidate currently requires a call because the questions concern a different proposed transition; latency is recorded. Real Laya failures fail closed and are logged. A deterministic `OracleLikePredictor` exists only for offline wiring tests and is labelled `surrogate`, never `base_laya`.
-
-## Labels and prediction error
-
-Labels derive from sandbox state changes and ground truth: terminal correctness, relevant facts discovered, unknowns resolved, side-effect flags, reversibility, and whether uncertainty remains. Every field records deterministic provenance. Prediction errors are absolute error per property; aggregate probabilistic metrics are deferred until a sufficiently large held-out set exists.
-
-## Benchmark
-
-Paired task templates and declared seeds compare `direct_gpt`, `candidates_heuristic`, and, only when a checkpoint loads, `candidates_base_laya`. Direct GPT chooses an action in a separate prompt; it is not approximated by selecting the first candidate. Candidate responses are cached by canonical state and experimental metadata so selector arms replay identical lists on identical states. Smoke runs validate plumbing. The nine-task `challenge` suite exercises broader templates and distractors but remains a visible development set. The frozen `final-v001` matrix contains 30 instances for each of three held-out templates and five registered seeds; only a report marked protocol-compliant supports the planned base-Laya conclusion. Full evaluation will split by task template, use repeated seeds, retain raw results, and report mean/median/std/bootstrap intervals, success, steps, unsafe actions, tokens, latency, RAM, and VRAM.
-
-## Risks
-
-- Laya 0.3.20 base checkpoints are weak zero-shot and miscalibrated; reported confidence is not correctness.
-- RTX 3070 Ti 8 GB is the local inference and training-smoke target, not a hard training limit. Full Milestone 2 fine-tuning/post-training may use explicitly authorized Nebius compute, reusing the proven cloud lifecycle from BeyondVRAM while preserving the same experimental contract.
-- Candidate formatting can dominate checkpoint differences; formatting version is recorded.
-- A deterministic planner proves the loop, not the GPT-vs-Laya hypothesis. Live experiments require OpenAI credentials and the local checkpoint.
-- Python 3.13 is available locally, but Laya/PyTorch compatibility may require Python 3.11 or 3.12; the project permits 3.11–3.13 and `doctor` reports the actual stack.
-
-## Milestones and exact order
+## Completed stages
 
 1. Freeze schemas, hashes, protocols, allowlist, and compact formatting.
-2. Implement deterministic sandbox tasks and oracle labels.
-3. Implement SQLite/event log and exact reconstruction.
-4. Add deterministic and OpenAI planners.
-5. Add explicit policies and loop detection.
-6. Add Laya adapter with typed mappings and telemetry.
-7. Run end-to-end demo, paired smoke benchmark, and nine-task development challenge.
-8. Harden tests and produce report artifacts.
-9. Milestone 2: collect trajectories, template-level splits, reproduce official fine-tune, calibrate on a disjoint set, evaluate untouched test.
-10. Milestone 3 only after a positive result: DAgger and broader templates.
+2. Implement the sandbox, deterministic labels, storage, planners, policies, and Laya adapter.
+3. Add cache-aware latency instrumentation and paired reporting.
+4. Freeze `final-v001` before v2bis training.
+5. Record v1 as a runtime-transfer failure and interrupt v2 after identifying action-ID leakage.
+6. Generate and freeze the v2bis executed-counterfactual corpus.
+7. Train and calibrate v2bis on one Nebius H100.
+8. Correct tie-aware selection evaluation without changing weights.
+9. Pass four-arm smoke and challenge runtime gates.
+10. Start the registered final campaign and preserve its resumable state after API-budget exhaustion.
+
+## Next stages
+
+1. Restore the evacuated workspace when OpenRouter budget is available.
+2. Resume the same campaign identifier, cache, checkpoints, prompts, model, and five seeds.
+3. Verify the 1,800-episode report and protocol-compliance verdict.
+4. Analyse paired success, steps, safety, unnecessary actions, prediction quality, selector latency, observed latency, and reconstructed end-to-end latency.
+5. Publish either the positive or negative bounded-domain result without tuning against final-v001.
+6. Design a new external computer-use benchmark before making broader claims.
+
+Parallel episode pools are future engineering work. The sequential implementation remains the reference protocol. A parallel mode must reproduce actions and quality metrics against `--workers 1`, preserve paired candidate cache semantics, and report latency under contention separately.
+
+Shopify integration, OAuth, DAgger, browser environments, and latent rollouts remain outside the current registered experiment.

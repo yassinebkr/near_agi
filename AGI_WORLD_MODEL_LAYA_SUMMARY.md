@@ -1,5 +1,7 @@
 # Toward an Agent with an Abstract Dynamics Model — LLM + Post-Trained Laya
 
+This document preserves the research motivation and original staged roadmap. Operational status is maintained in the [implementation plan](docs/IMPLEMENTATION_PLAN.md), [post-training plan](docs/LAYA_FINETUNING_PLAN.md), and [experiment log](docs/EXPERIMENT_LOG.md). V2bis training and runtime gates are complete; the registered final evaluation is paused and has no final result yet.
+
 ## 1. Starting Point
 
 The initial question was:

@@ -2,7 +2,7 @@
 
 ## Final-v001 pre-registration freeze
 
-The final matrix was frozen before live execution: 90 tasks, three held-out templates, 30 instances per template, and seeds `0,1,2,3,4`. A compliant report must use a fresh cache, CUDA base Laya, a live provider, and complete all 1,350 episodes. Each report fingerprints the canonical task manifest with SHA-256. A one-seed pilot is operational validation only and is excluded from final inference.
+The final matrix was frozen before live execution: 90 tasks, three held-out templates, 30 instances per template, seeds `0,1,2,3,4`, and four arms. A compliant report must use the registered campaign-scoped cache, CUDA base and fine-tuned Laya checkpoints, a live provider, and complete all 1,800 episodes. Each report fingerprints the canonical task manifest with SHA-256. Earlier one-seed pilots are operational validation only and are excluded from final inference.
 
 ## Historical latency limitation
 
@@ -34,7 +34,7 @@ A post-collection audit found 34 generated duplicates whose executable `tool + a
 
 Integrity verification passed: split checksums match, scenario groups do not overlap across splits, development templates are disjoint from training templates, no reserved final template is present, and `action_id` is absent from the serialized `state` consumed by Laya. Full audit records retain candidate and history IDs outside that model-facing field. The complete test suite passed 47 tests. The frozen manifest is `configs/train/v002bis.dataset-manifest.json`; this corpus is approved for the v2bis training stage but carries no model-quality claim.
 
-## laya-dynamics-v002bis · training and runtime evaluation in progress
+## laya-dynamics-v002bis · training complete, runtime evaluation paused
 
 Date: 2026-09-29. Hardware: one NVIDIA H100 80 GB. Training completed 5,648 updates and 46,371,505 tokens in 5,687.8 seconds, with 8.82 GiB peak reserved VRAM. The exported checkpoint has SHA-256 `19eb33a1a2ad62e019325b29f3796b2e507fb4723ca6bd4ac22b3de726458fbf`.
 

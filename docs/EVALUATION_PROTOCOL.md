@@ -1,4 +1,4 @@
-# Evaluation protocol (pre-registered draft)
+# Evaluation protocol
 
 ## Experimental contract
 
@@ -15,6 +15,10 @@ The `challenge` suite contains all nine current tasks across eight templates. It
 `final-v001` contains 90 instances across three templates absent from the development suites: `heldout-qualified-limit-v1`, `heldout-current-policy-v1`, and `heldout-security-threshold-v1`. Each template contributes exactly 30 instances. The registered seeds are `0,1,2,3,4`. OpenRouter receives each seed for direct and candidate-generation calls, although provider determinism is not assumed to be bit-exact.
 
 A compliant final report requires the `final` suite, all five registered seeds, a fresh campaign-scoped cache, both base and fine-tuned Laya enabled, a live provider, and complete execution. Reports record `final_protocol.compliant`, `suite_version`, and `task_manifest_sha256`, plus standard deviations, deterministic 95% bootstrap intervals, per-template results, and paired success and step deltas.
+
+### Execution status (non-normative)
+
+The registered matrix contains 1,800 episodes: 90 tasks multiplied by five seeds and four arms. The active campaign is paused after 705 durable episodes because its OpenRouter budget was exhausted. This operational status does not change the protocol. The archived checkpoint and cache must be resumed exactly, and the incomplete prefix cannot support a result.
 
 Before the single-use final campaign, a fine-tuned checkpoint must pass both the live four-arm runtime smoke and visible challenge suites through the same `LayaPredictor` API used by final evaluation. Offline tensor-level development scores alone cannot promote a checkpoint. Runtime failure closes the gate without exposing final-v001.
 The automated v2bis pipeline uses stable campaign identifiers and atomically checkpoints each completed episode. Smoke and challenge require a complete four-arm report, fine-tuned success no worse than the best control, zero fine-tuned unsafe actions, and no increase in unnecessary actions relative to base Laya. Any failure stops before the next suite. Removing current and historical `action_id` values is one shared train/runtime representation change, not a benchmark-only ablation.

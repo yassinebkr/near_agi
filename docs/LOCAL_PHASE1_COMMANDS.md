@@ -1,164 +1,93 @@
-# Portable local phase 1 commands
+# Portable local commands
 
-Choose a local storage directory before running these commands. Machine-specific paths belong in the shell or ignored `.env` file and must never be committed.
+Machine-specific paths belong in the shell or ignored `.env` file. They must not be committed.
+
+## Environment setup
 
 ```bash
 cd near_agi
 export LDA_STORAGE="${LDA_STORAGE:-${XDG_DATA_HOME:-$HOME/.local/share}/laya-dynamics-agent}"
 
-mkdir -p "$LDA_STORAGE"
 mkdir -p "$LDA_STORAGE/uv-cache"
 
 UV_PROJECT_ENVIRONMENT="$LDA_STORAGE/.venv" \
 UV_CACHE_DIR="$LDA_STORAGE/uv-cache" \
-uv sync --extra test
+uv sync --extra test --extra laya
 
-UV_CACHE_DIR="$LDA_STORAGE/uv-cache" \
-uv pip install \
-  --python "$LDA_STORAGE/.venv/bin/python" \
-  "laya @ git+https://github.com/NandhaKishorM/laya.git@9d955671415fc19f069b9cc998928075c1f255ec"
-
-export LAYA_CHECKPOINT=/path/to/laya/base-english
-export HF_HOME=/path/to/huggingface-cache
-
-./scripts/verify_laya_checkpoint.sh
-"$LDA_STORAGE/.venv/bin/lda" doctor
-"$LDA_STORAGE/.venv/bin/pytest"
-"$LDA_STORAGE/.venv/bin/lda" demo
-"$LDA_STORAGE/.venv/bin/lda" benchmark --suite smoke --with-laya
+cp .env.example .env
+uv run lda doctor
+uv run pytest -q
 ```
 
-The last command is a deterministic engineering smoke test. It validates the local Laya load and the complete prediction/policy/environment/storage loop; it is not yet the scientific live-GPT comparison. Reports are written under `reports/`, trajectories to `data/trajectories.sqlite3`, and events to `logs/runs/`.
+For the validated local CUDA environment, follow [CUDA setup](CUDA_SETUP.md). Do not rely on an implicit CPU fallback for a timed campaign.
 
+## Deterministic engineering checks
 
-
-## Configure `.env`
-
-Copy the template once and edit only the local `.env` file; it is ignored by Git:
+These checks require no API key:
 
 ```bash
-cd near_agi
-cp .env.example .env
-nano .env
+uv run lda demo
+
+uv run lda benchmark \
+  --suite smoke \
+  --provider deterministic \
+  --seeds 0
+
+LAYA_DEVICE=cuda \
+LAYA_CHECKPOINT=/path/to/base-english \
+uv run lda benchmark \
+  --suite smoke \
+  --provider deterministic \
+  --seeds 0 \
+  --with-laya
 ```
 
-Use these exact values (replace only the key):
+They validate plumbing, persistence, and checkpoint loading. They do not measure live GPT or establish Laya performance.
+
+## Live four-arm development check
+
+Set secrets in `.env` or the shell:
 
 ```dotenv
-OPENROUTER_API_KEY=sk-or-v1-REPLACE_ME
+OPENROUTER_API_KEY=replace_me
 OPENROUTER_MODEL=openai/gpt-5.6-sol
-LAYA_CHECKPOINT=/path/to/laya/base-english
-HF_HOME=/path/to/huggingface-cache
+OPENROUTER_MAX_TOKENS=4096
+LAYA_DEVICE=cuda
 ```
 
-## Phase 1 execution order
-
-First validate the benchmark without network or API cost:
+Run a four-arm smoke or challenge with explicit checkpoints:
 
 ```bash
-cd near_agi
-"$LDA_STORAGE/.venv/bin/pytest"
-"$LDA_STORAGE/.venv/bin/lda" benchmark \
-  --suite smoke \
-  --provider deterministic \
-  --seeds 0,1
-```
-
-Then validate the local Laya checkpoint, still without an API call:
-
-```bash
-cd near_agi
-"$LDA_STORAGE/.venv/bin/lda" benchmark \
-  --suite smoke \
-  --provider deterministic \
-  --seeds 0 \
-  --with-laya
-```
-
-Finally run the small live OpenRouter comparison using the exact same GPT-5.6 Sol model for direct actions and candidate generation:
-
-```bash
-cd near_agi
-"$LDA_STORAGE/.venv/bin/lda" benchmark \
-  --suite smoke \
-  --provider openrouter \
-  --model openai/gpt-5.6-sol \
-  --seeds 0 \
-  --with-laya
-```
-
-The live campaign contains `direct_gpt`, `candidates_heuristic`, and `candidates_base_laya` across three tasks. Candidate responses are cached under `data/candidate_cache/`; trajectories are stored in `data/trajectories.sqlite3`, events under `logs/runs/`, and the comparative report under `reports/latest/`. Re-running an identical candidate state replays its cached response rather than spending another candidate-generation call. Direct GPT calls remain independent because they are the control arm.
-
-For a clean CUDA-backed campaign that does not replay candidates from an earlier cache:
-
-```bash
-cd near_agi
-
 LAYA_DEVICE=cuda \
-"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
-  --suite smoke \
-  --provider openrouter \
-  --model openai/gpt-5.6-sol \
-  --seeds 0 \
-  --with-laya \
-  --fresh-candidate-cache
-```
-
-The fresh cache is named with the generated campaign identifier. Existing caches are preserved. Within the new campaign, both candidate-selection arms continue to share byte-identical generated candidates.
-
-The next development campaign uses the nine-task challenge suite:
-
-```bash
-cd near_agi
-
-LAYA_DEVICE=cuda \
-"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
+uv run lda benchmark \
   --suite challenge \
   --provider openrouter \
   --model openai/gpt-5.6-sol \
   --seeds 0 \
-  --with-laya \
+  --base-laya-checkpoint /path/to/base-english \
+  --finetuned-laya-checkpoint /path/to/laya-dynamics-v002bis \
   --fresh-candidate-cache
 ```
 
-This produces 27 episodes: nine direct-GPT episodes, nine heuristic-selector episodes, and nine base-Laya episodes. Start with one seed. Multi-seed execution is deferred until the challenge results have been inspected and the held-out dataset exists.
+This produces 36 episodes: nine tasks across direct GPT, heuristic, base Laya, and fine-tuned Laya. The three candidate selectors share a campaign cache. Direct GPT remains independent.
 
-Press `Ctrl+C` once to request a graceful stop. The current atomic operation finishes, then the partial run is committed with status `interrupted`. OAuth is not part of this milestone. The smoke suite validates the experimental wiring; it is not the full statistically powered campaign.
+`--fresh-candidate-cache` creates a new campaign-scoped cache without deleting prior evidence. Add `--campaign-id ID` for a stable long run and use the identical command with `--resume` after interruption.
 
-## Frozen final benchmark
+The first `Ctrl+C` requests a graceful stop after the current atomic planner, predictor, or environment operation. Completed episodes remain durable in SQLite, JSONL, and the campaign checkpoint.
 
-Run a one-seed pilot first to validate provider compatibility and estimate current cost. The report will intentionally say `NON-COMPLIANT PILOT`:
+## Frozen final campaign
 
-```bash
-cd near_agi
+The registered v2bis final campaign has already started. It contains 1,800 episodes: 90 tasks, five seeds, and four arms. It is paused after 705 durable episodes because the OpenRouter budget was exhausted.
 
-LAYA_DEVICE=cuda \
-"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
-  --suite final \
-  --provider openrouter \
-  --model openai/gpt-5.6-sol \
-  --seeds 0 \
-  --with-laya \
-  --fresh-candidate-cache
-```
+Do not start a new final campaign or create a fresh cache. Restore and resume the archived campaign by following [Nebius post-training runbook](NEBIUS_POSTTRAIN_RUNBOOK.md). A new one-seed pilot would consume API budget and cannot be combined with the registered result.
 
-After inspecting the pilot, run the pre-registered campaign:
+## Outputs
 
-```bash
-cd near_agi
+- `data/trajectories.sqlite3`: durable transitions.
+- `data/candidate_cache/`: campaign candidate provenance and original generation timing.
+- `logs/runs/<run_id>/events.jsonl`: structured episode events.
+- `reports/<campaign>/checkpoint.json`: atomic resume state.
+- `reports/latest/metrics.json`: complete machine-readable report.
+- `reports/latest/summary.md`: readable report.
 
-LAYA_DEVICE=cuda \
-"$LDA_STORAGE/.venv-cu124/bin/lda" benchmark \
-  --suite final \
-  --provider openrouter \
-  --model openai/gpt-5.6-sol \
-  --seeds 0,1,2,3,4 \
-  --with-laya \
-  --fresh-candidate-cache
-```
-
-The compliant campaign contains 1,350 episodes. Extrapolating from `benchmark-795a36f9`, budget approximately 75–120 minutes and about $3.4, with provider-dependent variance. The one-seed pilot contains 270 episodes and is expected to cost roughly $0.7. Do not combine pilot results with the compliant campaign.
-
-## Terminal output
-
-The default benchmark output shows one progress line per episode and a compact final table. Complete metrics are always written to `reports/latest/metrics.json`. Use `--json` only when machine-readable terminal output is needed, and `--debug` when diagnosing an exception.
+Terminal output is human-readable by default. Use `--json` for complete terminal JSON and `--debug` for exception tracebacks.

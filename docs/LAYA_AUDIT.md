@@ -1,6 +1,6 @@
 # Laya audit
 
-Audit date: 2026-09-28. Upstream: `NandhaKishorM/laya`, `main`; package metadata on `main`: **0.3.21** (the README heading still says 0.3.20). This checkout does not vendor or pin an upstream commit yet, so the exact commit must be recorded before a scientific run.
+Initial audit date: 2026-09-28. Upstream: `NandhaKishorM/laya`. The training and evaluation environment is pinned to revision `9d955671415fc19f069b9cc998928075c1f255ec`; package metadata reports **0.3.21**.
 
 ## Verified upstream contract
 
@@ -22,7 +22,9 @@ The worked browser-agent guide reports single-16-GB-GPU specialisation, with ele
 
 ## Runtime and hooks
 
-Upstream documents prediction hooks for logging/redaction/cache/gating, batch/HTTP interfaces, CPU and NVIDIA CUDA containers, and an OOM fallback that disables the TileLang fast path before CPU retry. This POC wraps rather than patches Laya and independently records wall latency and process/GPU telemetry. Actual CUDA, PyTorch, checkpoint load, length, batching, and VRAM behavior are machine-dependent and reported by `lda doctor`; none were exercised during this source-only audit.
+Upstream documents prediction hooks for logging/redaction/cache/gating, batch/HTTP interfaces, CPU and NVIDIA CUDA containers, and an OOM fallback that disables the TileLang fast path before CPU retry. This POC wraps rather than patches Laya and independently records wall latency and process/GPU telemetry.
+
+The original source audit has now been followed by measured execution. Base and fine-tuned checkpoints load through the same `LayaPredictor` API on local CUDA and a Nebius H100. The v2bis full training peaked at 8.82 GiB reserved VRAM. The exported model passed offline evaluation plus live smoke and challenge gates. Base-checkpoint confidence remains uncalibrated because one shipped temperature is outside `[0.5, 5]` and is clamped during load; the recalibrated v2bis checkpoint does not emit that warning.
 
 ## Primary sources
 
