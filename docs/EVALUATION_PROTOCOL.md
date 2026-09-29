@@ -21,10 +21,28 @@ The automated v2bis pipeline uses stable campaign identifiers and atomically che
 
 ## Arms
 
-- `direct_gpt`: the configured GPT model chooses one action directly.
-- `candidates_heuristic`: the configured GPT model generates candidates. A transparent heuristic scores them.
-- `candidates_base_laya`: the same cached candidates are scored by the unmodified local Laya checkpoint.
-- `candidates_finetuned_laya`: the same cached candidates are scored by the promoted `laya-dynamics-v002bis` checkpoint.
+All four arms begin from the same task state. The three candidate-based arms share the campaign cache so that selector quality is compared over byte-equivalent action sets.
+
+```mermaid
+flowchart TB
+  S[Task state] --> D[direct_gpt<br/>GPT chooses the action]
+  S --> G[GPT generates candidates]
+  G --> K[(Campaign cache)]
+  K --> H[candidates_heuristic<br/>Transparent scoring]
+  K --> B[candidates_base_laya<br/>Unmodified checkpoint]
+  K --> F[candidates_finetuned_laya<br/>Promoted v2bis checkpoint]
+  D --> E[Environment step]
+  H --> E
+  B --> E
+  F --> E
+```
+
+| Arm | Candidate source | Selector | Purpose |
+| --- | --- | --- | --- |
+| `direct_gpt` | None | Configured GPT model | End-to-end direct-action control |
+| `candidates_heuristic` | GPT campaign cache | Transparent heuristic | Candidate-generation and rule-based control |
+| `candidates_base_laya` | Same GPT campaign cache | Unmodified local Laya | Zero-shot Laya baseline |
+| `candidates_finetuned_laya` | Same GPT campaign cache | Promoted `laya-dynamics-v002bis` | Post-training treatment arm |
 
 The deterministic provider supplies offline stand-ins for wiring tests and must never be reported as GPT or Laya performance.
 

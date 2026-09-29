@@ -4,15 +4,19 @@ This research POC evaluates whether a specialised local Laya transition predicto
 
 [Laya](https://github.com/NandhaKishorM/laya) is a non-autoregressive System 1 decision engine. It answers typed choice, score, and yes/no questions over structured state in a single forward pass.
 
-Here, Laya estimates six properties of each candidate state transition. An explicit policy uses those predictions to select the next action.
+Here, Laya estimates six properties of each candidate state transition. An explicit policy uses those predictions to select the next action. The central experiment asks whether post-training can preserve Laya's fastest decisions while removing its loops, failures, and long-tail slowdowns.
 
 For the broader research motivation, see [Toward an Agent with an Abstract Dynamics Model](AGI_WORLD_MODEL_LAYA_SUMMARY.md).
+
+## Agent decision loop
+
+GPT proposes typed actions. Laya can score their likely transitions before an explicit policy commits one action to the sandbox.
 
 ```mermaid
 flowchart LR
   S[Compact state] --> G[GPT planner]
   G --> C[3–8 typed candidates]
-  C --> L[Optional local Laya]
+  C --> L[Local Laya predictor]
   L --> P[Explicit policy]
   C --> P
   P --> E[Sandbox]
@@ -20,9 +24,11 @@ flowchart LR
   O --> T[(SQLite + JSONL)]
 ```
 
-## Install on Debian 13
+The direct path from candidates to policy is the transparent heuristic control. The Laya path predicts success, goal progress, information gain, risk, reversibility, and whether more observation is needed.
 
-Use an isolated `uv` environment. Keep the system Python unchanged:
+## Quick start on Debian 13
+
+Use an isolated `uv` environment and keep the system Python unchanged:
 
 ```bash
 uv sync --extra test
@@ -32,48 +38,67 @@ uv run lda demo
 uv run lda benchmark --suite smoke
 ```
 
-The default demo uses a deterministic fixture planner plus a transparent heuristic predictor, so it works without secrets or model downloads. It validates the loop. Use the real installed local checkpoint for a Laya benchmark:
+The default demo is deterministic and requires neither secrets nor model downloads. To exercise an installed Laya checkpoint:
 
 ```bash
 uv sync --extra test --extra laya
-LAYA_CHECKPOINT=/path/to/checkpoint uv run lda benchmark --suite smoke --with-laya
+LAYA_CHECKPOINT=/path/to/checkpoint \
+  uv run lda benchmark --suite smoke --with-laya
 ```
 
-Add `OPENAI_API_KEY` and `OPENAI_MODEL` to `.env` for future live-planner runs. Git ignores `.env`. The CLI fails explicitly when a requested provider is unavailable.
-The CLI loads the project-root `.env` automatically. Variables explicitly exported in the shell take precedence.
+The CLI loads the project-root `.env` automatically. Shell variables take precedence. Git ignores `.env`, and the CLI fails explicitly when a requested provider is unavailable.
 
-The sandbox is an in-process deterministic web abstraction with nine tasks across eight templates, primary and secondary sources, contradictions, and a simulated irreversible action. The benchmark has a genuine direct-action control. Candidate-based heuristic and Laya arms replay cached candidate lists for every identical state. Complete transitions go to `data/trajectories.sqlite3` and `logs/runs/<run_id>/events.jsonl`. Reports go to `reports/`. See the [implementation plan](docs/IMPLEMENTATION_PLAN.md), [Laya audit](docs/LAYA_AUDIT.md), and [evaluation protocol](docs/EVALUATION_PROTOCOL.md). Campaign results are recorded in the [experiment log](docs/EXPERIMENT_LOG.md).
-See also the [compute strategy](docs/COMPUTE_STRATEGY.md). Phase 1 inference stays local. Nebius is reserved for explicitly authorized fine-tuning and post-training.
-For reproducible GPU campaigns, follow the fail-closed [CUDA setup](docs/CUDA_SETUP.md). The staged local-versus-Nebius decision is frozen in the [Laya post-training plan](docs/LAYA_FINETUNING_PLAN.md).
-The operational cloud procedure is the [Nebius post-training runbook](docs/NEBIUS_POSTTRAIN_RUNBOOK.md). Resource provisioning remains manual, and paid training requires explicit approval.
-Nebius training runs inside a logged `screen` session. Reattaching shows the original human-readable pipeline output while structured JSONL remains available for audit.
-Machine-specific commands are kept in [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHASE1_COMMANDS.md), outside the portable quickstart.
+For the exact CUDA installation and validation sequence, follow [CUDA setup](docs/CUDA_SETUP.md). Machine-specific paths belong in the ignored local guide described by [LOCAL_PHASE1_COMMANDS.md](docs/LOCAL_PHASE1_COMMANDS.md), not in portable documentation.
 
-Milestone 1 provides the reliable end-to-end loop, direct-GPT and candidate-selector controls, candidate caching, nine deterministic tasks, the real Laya adapter, storage, loop guards, token and latency telemetry, and aggregate reporting. The smoke and challenge suites validate the engineering path. Research conclusions use the held-out templates and sample sizes defined in the evaluation protocol.
+## What the benchmark compares
 
+Every live four-arm campaign compares direct GPT, a transparent heuristic, unmodified Laya, and the fine-tuned Laya checkpoint. Candidate-based arms replay byte-equivalent candidate lists for matching states.
 
-## OpenRouter planner
+```mermaid
+flowchart TB
+  S[Task state] --> D[Direct GPT action]
+  S --> G[GPT candidate generation]
+  G --> K[(Campaign candidate cache)]
+  K --> H[Heuristic selector]
+  K --> B[Base Laya selector]
+  K --> F[Fine-tuned Laya selector]
+  D --> E[Environment]
+  H --> E
+  B --> E
+  F --> E
+```
 
-OpenRouter uses its own key and defaults to the exact model id `openai/gpt-5.6-sol`:
+The suites have distinct roles:
+
+- `smoke` checks the three-task execution path.
+- `challenge` exercises nine visible development tasks across eight templates.
+- `final-v001` contains 90 frozen held-out instances across three unseen templates. Its registered campaign uses seeds `0,1,2,3,4`.
+
+The full experimental contract, gates, arms, paired statistics, and decision rule are defined in the [evaluation protocol](docs/EVALUATION_PROTOCOL.md). Historical campaigns and methodological corrections are preserved in the [experiment log](docs/EXPERIMENT_LOG.md).
+
+## Run with OpenRouter
+
+OpenRouter uses its own API key. The current reference model is `openai/gpt-5.6-sol`:
 
 ```bash
 export OPENROUTER_API_KEY=sk-or-v1-...
 export OPENROUTER_MODEL=openai/gpt-5.6-sol
-uv run lda benchmark --suite smoke --provider openrouter --with-laya
+
+uv run lda benchmark \
+  --suite smoke \
+  --provider openrouter \
+  --model "$OPENROUTER_MODEL" \
+  --with-laya \
+  --fresh-candidate-cache
 ```
 
-By default, benchmark output is a compact per-episode progress log plus a summary table. Latency telemetry separates planner wall time, fresh candidate generation, cache replay, predictor wall and reported time, policy, environment, framework overhead and complete episode wall time. Reports distinguish selector speed with candidates available from observed or reconstructed end-to-end performance. A warm cache replay is never presented alone as a cold-start speedup. Full metrics remain in `reports/latest/metrics.json`. Add `--json` for the complete terminal JSON or `--debug` for full exception tracebacks.
+Provider fallback is disabled. OAuth is deferred to the later Shopifast-based authentication milestone.
 
-Long campaigns also accept `--campaign-id ID`; restart the identical command with `--resume` to skip atomically checkpointed episodes while retaining the same campaign-scoped cache.
+Long campaigns accept `--campaign-id ID`. Re-run the identical command with `--resume` to skip atomically checkpointed episodes and retain the campaign-scoped cache. The first `Ctrl+C` requests a graceful stop after the current atomic planner, predictor, or environment operation.
 
-Use `--fresh-candidate-cache` for a clean live campaign. It creates a campaign-scoped cache, preserves previous caches, and still guarantees that the heuristic and Laya arms compare the same candidate lists inside the campaign.
+## Final four-arm evaluation
 
-The CLI exposes two development suites: `smoke` keeps the original three-task wiring check, while `challenge` runs all nine tasks across eight templates with contradictory secondary sources, archived values, primary evidence, and a simulated irreversible branch. Held-out statistical evaluation uses the frozen `final-v001` suite.
-
-The frozen `final-v001` suite is separate: 90 held-out instances across three unseen templates, with 30 instances per template. A protocol-compliant campaign uses exactly seeds `0,1,2,3,4`, explicit base and fine-tuned Laya checkpoints, CUDA, a live provider, and `--fresh-candidate-cache`. The four arms share one campaign-scoped candidate cache. Reports include the suite version, a SHA-256 task-manifest fingerprint, bootstrap intervals, per-template metrics, paired arm comparisons, and an explicit compliance verdict.
-
-
-After a checkpoint passes both runtime gates, the four-arm final command shape is:
+Run the final suite only after the fine-tuned checkpoint passes both smoke and challenge runtime gates:
 
 ```bash
 LAYA_DEVICE=cuda \
@@ -87,21 +112,46 @@ uv run lda benchmark \
   --fresh-candidate-cache
 ```
 
-Run a deterministic smoke with both checkpoints before this single-use final campaign.
+`final-v001` is single-use for the declared base-versus-fine-tuned comparison. Its task manifest, checkpoints, prompt versions, seeds, provider, model, and cache provenance are recorded in the report.
 
-The current post-training candidate is `v2bis`. GPT-5.6 Sol generates the candidate sets, every candidate is executed counterfactually on an independent simulator clone, and labels come only from observed transitions. Current and historical action identifiers are excluded from model input but retained outside it for audit. The interrupted v2 checkpoint is historical evidence and must not be resumed as v2bis.
+## Reading latency correctly
 
-A clean local CUDA/OpenRouter challenge run is:
+Reports answer two different performance questions:
 
-```bash
-LAYA_DEVICE=cuda \
-uv run lda benchmark \
-  --suite challenge \
-  --provider openrouter \
-  --model openai/gpt-5.6-sol \
-  --seeds 0 \
-  --with-laya \
-  --fresh-candidate-cache
-```
+- **Selector latency** measures Laya and policy time after candidates already exist.
+- **End-to-end latency** includes candidate generation, prediction, policy, environment work, and completion of the task.
 
-Provider fallback is disabled. OAuth is deferred to the later Shopifast-based authentication milestone. During a run, the first `Ctrl+C` requests a graceful stop after the current atomic planner, predictor, or environment operation. The partial run is finalized in SQLite and JSONL with status `interrupted`.
+Telemetry separates planner time, fresh candidate generation, cache lookup, predictor wall time, predictor-reported time, policy, environment, framework overhead, and complete episode wall time. Cache replays are marked as warm observations. When original generation timing is complete, reports also provide a clearly labelled reconstructed end-to-end value.
+
+A warm selector result is never reported as a cold-start system speedup. Exact definitions and paired latency ratios live in the [evaluation protocol](docs/EVALUATION_PROTOCOL.md).
+
+Human-readable progress appears in the terminal. Structured evidence is written to:
+
+- `data/trajectories.sqlite3` for durable transitions.
+- `logs/runs/<run_id>/events.jsonl` for run events.
+- `reports/latest/metrics.json` for complete metrics.
+- `reports/latest/summary.md` for the readable campaign summary.
+
+Add `--json` for complete terminal JSON or `--debug` for full exception tracebacks.
+
+## Post-training
+
+The current candidate is `laya-dynamics-v002bis`. GPT-5.6 Sol generated its action sets, each candidate was executed counterfactually on an independent simulator clone, and labels came from observed transitions. Action identifiers are excluded from model input and retained separately for audit.
+
+The training design and promotion criteria are documented in the [Laya post-training plan](docs/LAYA_FINETUNING_PLAN.md). The operational cloud workflow is in the [Nebius runbook](docs/NEBIUS_POSTTRAIN_RUNBOOK.md). Paid resources and training require explicit approval. Training runs inside a logged `screen` session so the original human-readable output remains available alongside structured artifacts.
+
+The interrupted v2 checkpoint is historical evidence and is not eligible for promotion or reuse as v2bis.
+
+## Documentation map
+
+- [Architecture](docs/ARCHITECTURE.md): components, boundaries, and data flow.
+- [Evaluation protocol](docs/EVALUATION_PROTOCOL.md): frozen suites, arms, metrics, gates, and decision rule.
+- [Experiment log](docs/EXPERIMENT_LOG.md): chronological runs and methodological notes.
+- [Laya audit](docs/LAYA_AUDIT.md): upstream API and checkpoint assessment.
+- [Implementation plan](docs/IMPLEMENTATION_PLAN.md): milestones and remaining engineering work.
+- [Compute strategy](docs/COMPUTE_STRATEGY.md): local inference and cloud training boundaries.
+- [Laya post-training plan](docs/LAYA_FINETUNING_PLAN.md): corpus, training, calibration, and promotion.
+- [Nebius runbook](docs/NEBIUS_POSTTRAIN_RUNBOOK.md): staging, smoke, full training, recovery, and evacuation.
+- [BeyondVRAM audit](docs/BEYONDVRAM_AUDIT.md): reusable cloud-training practices.
+
+The sandbox is a deterministic in-process web abstraction. Results establish performance within this bounded environment. General computer-use claims require separate environments, unseen sites, perturbations, and failure-recovery evaluation.
