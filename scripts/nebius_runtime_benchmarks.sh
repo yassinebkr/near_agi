@@ -12,6 +12,10 @@ model=${OPENROUTER_MODEL:-openai/gpt-5.6-sol}
 state_dir="$workspace/runtime-eval/v002bis"
 mkdir -p "$state_dir"
 
+# Screen sessions start in the caller's working directory. The benchmark
+# currently resolves prompt assets relative to the repository root.
+cd "$root"
+
 test -n "${OPENROUTER_API_KEY:-}" || {
   echo "OPENROUTER_API_KEY is required for automatic runtime gates." >&2
   exit 2

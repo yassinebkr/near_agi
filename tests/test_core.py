@@ -5,7 +5,7 @@ from pathlib import Path
 from laya_dynamics_agent.benchmark import _paired_comparisons, run_benchmark_suite
 from laya_dynamics_agent.cli import concise_error, print_benchmark_summary
 from laya_dynamics_agent.models import ActionRecord, AgentState, CandidateAction
-from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _parse_structured_action, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
+from laya_dynamics_agent.planners import _ACTION_SCHEMA, _DIRECT_PROMPT, _openrouter_max_tokens, _parse_structured_action, CachedPlanner, DeterministicDirectPlanner, DeterministicPlanner, OpenRouterPlanner
 from laya_dynamics_agent.policies import GPTOnlyPolicy, GreedyUtilityPolicy
 from laya_dynamics_agent.predictors import HeuristicPredictor, LayaPredictor, compact_state, resolve_laya_device
 from laya_dynamics_agent.runner_impl import run_episode
@@ -15,6 +15,7 @@ from laya_dynamics_agent.posttrain import (
     _format_train_event,
     _question_for_laya,
     _restore_rng_state,
+    _selection_metrics,
     _training_repetitions,
     promotion_gate,
     verify_dataset,
@@ -57,6 +58,20 @@ def test_openrouter_requires_its_own_key(monkeypatch):
         assert "OPENROUTER_API_KEY" in str(exc)
     else:
         raise AssertionError("missing OpenRouter key should fail closed")
+
+
+def test_openrouter_output_budget_is_bounded_and_configurable(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_MAX_TOKENS", raising=False)
+    assert _openrouter_max_tokens() == 4096
+    monkeypatch.setenv("OPENROUTER_MAX_TOKENS", "2048")
+    assert _openrouter_max_tokens() == 2048
+    monkeypatch.setenv("OPENROUTER_MAX_TOKENS", "65536")
+    try:
+        _openrouter_max_tokens()
+    except ValueError as exc:
+        assert "between 256 and 16384" in str(exc)
+    else:
+        raise AssertionError("unbounded OpenRouter output budget should fail closed")
 
 
 def test_graceful_stop_records_partial_run(tmp_path:Path):
@@ -478,6 +493,24 @@ def test_posttraining_resume_restores_rng_states_on_cpu():
     assert torch_module.cuda.states == cuda_states
     assert cpu_state.cpu_calls == 1
     assert [state.cpu_calls for state in cuda_states] == [1, 1]
+
+
+def test_selection_metrics_accepts_tied_optimal_actions_and_reports_regret():
+    weights = {"success": 1.0, "risk": -1.0}
+    grouped = {"state": {
+        "first": {"predicted": {"success": .9, "risk": 0.0},
+                  "target": {"success": 1.0, "risk": 0.0}},
+        "tied": {"predicted": {"success": 1.0, "risk": 0.0},
+                 "target": {"success": 1.0, "risk": 0.0}},
+        "worse": {"predicted": {"success": 0.0, "risk": 0.0},
+                  "target": {"success": 0.0, "risk": 0.0}},
+    }}
+    metrics = _selection_metrics(grouped, weights)
+    assert metrics["selection_accuracy"] == 1.0
+    assert metrics["exact_action_match_accuracy"] == 0.0
+    assert metrics["tied_oracle_groups"] == 1
+    assert metrics["mean_selection_regret"] == 0.0
+    assert metrics["suboptimal_selections"] == 0
 
 
 def test_posttraining_promotion_gate_is_fail_closed(tmp_path: Path):

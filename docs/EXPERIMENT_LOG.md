@@ -34,6 +34,16 @@ A post-collection audit found 34 generated duplicates whose executable `tool + a
 
 Integrity verification passed: split checksums match, scenario groups do not overlap across splits, development templates are disjoint from training templates, no reserved final template is present, and `action_id` is absent from the serialized `state` consumed by Laya. Full audit records retain candidate and history IDs outside that model-facing field. The complete test suite passed 47 tests. The frozen manifest is `configs/train/v002bis.dataset-manifest.json`; this corpus is approved for the v2bis training stage but carries no model-quality claim.
 
+## laya-dynamics-v002bis · training and runtime evaluation in progress
+
+Date: 2026-09-29. Hardware: one NVIDIA H100 80 GB. Training completed 5,648 updates and 46,371,505 tokens in 5,687.8 seconds, with 8.82 GiB peak reserved VRAM. The exported checkpoint has SHA-256 `19eb33a1a2ad62e019325b29f3796b2e507fb4723ca6bd4ac22b3de726458fbf`.
+
+The first offline promotion report used exact action-hash agreement and reported 72.67% selection accuracy even though 183 of 300 development groups contained multiple actions tied for optimal target utility. The evaluator was corrected without changing model weights. Under the pre-existing utility function and a `1e-9` tie tolerance, v2bis selected an optimal action in 299 of 300 groups, made one genuinely suboptimal selection, produced zero unsafe selections and had mean regret `0.006`. Exact action match remains 72.67% as a diagnostic. The corrected offline gate passed.
+
+Live four-arm smoke and challenge gates then passed. Fine-tuned Laya completed all three smoke tasks and all nine challenge tasks with 100% success, two steps per task, zero unsafe actions and zero unnecessary actions. Base Laya reached 77.78% success on challenge with ten unnecessary actions. These visible gates validate runtime transfer but do not replace the frozen final campaign.
+
+The first `final-v001` execution attempt stopped after 528 of 1,800 planned arm episodes. OpenRouter rejected the next direct request because the client implicitly requested up to 65,536 output tokens while the key's remaining limit supported 65,516. This was a request-envelope failure, not a task or model failure. The campaign checkpoint and campaign-scoped candidate cache remain intact. No final result is inferred from this incomplete prefix. The OpenRouter planners now use a validated, configurable `OPENROUTER_MAX_TOKENS` with a 4,096-token default before resuming the identical campaign.
+
 ## laya-dynamics-v001 · Nebius post-training
 
 Date: 2026-09-28. Hardware: one NVIDIA H100 80 GB. Laya revision: `9d955671415fc19f069b9cc998928075c1f255ec`. The three-step smoke was resumed into the frozen four-epoch recipe. Training completed 7,352 optimizer updates and 41,809,925 tokens in 7,722 seconds, with 8.74 GiB peak reserved VRAM. Epoch-average objectives were `0.0110`, `0.0426`, `-0.0107` and `-0.0108`. The signed RLCD objective is not expected to decrease monotonically. Cross-entropy was exactly zero at 77.9% of logged points, indicating that most sampled batches became trivial; this makes independent task evaluation essential.

@@ -10,6 +10,17 @@ from pathlib import Path
 from .models import AgentState, CandidateAction
 
 
+def _openrouter_max_tokens() -> int:
+    raw = os.getenv("OPENROUTER_MAX_TOKENS", "4096")
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError("OPENROUTER_MAX_TOKENS must be an integer") from exc
+    if not 256 <= value <= 16384:
+        raise ValueError("OPENROUTER_MAX_TOKENS must be between 256 and 16384")
+    return value
+
+
 class DeterministicPlanner:
     """Fixture planner for reproducible smoke tests; it is not a GPT result."""
 
@@ -189,6 +200,7 @@ class OpenRouterPlanner:
             headers["HTTP-Referer"] = referer
         self.client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1", default_headers=headers)
         self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-sol")
+        self.max_tokens = _openrouter_max_tokens()
         self.seed = 0
         self.prompt = Path(prompt_path).read_text()
         self.last_usage: dict = {}
@@ -204,6 +216,7 @@ class OpenRouterPlanner:
                 "type": "object", "properties": {"actions": {"type": "array", "minItems": 1, "maxItems": max_actions, "items": _ACTION_SCHEMA}},
                 "required": ["actions"], "additionalProperties": False,
             }}},
+            max_tokens=self.max_tokens,
             extra_body={"provider": {"require_parameters": True}},
         )
         self.last_latency_ms = (time.perf_counter() - started) * 1000
@@ -286,13 +299,14 @@ class OpenRouterDirectPlanner:
             headers["HTTP-Referer"] = referer
         self.client = AsyncOpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1", default_headers=headers)
         self.model = model or os.getenv("OPENROUTER_MODEL", "openai/gpt-5.6-sol")
+        self.max_tokens = _openrouter_max_tokens()
         self.seed = 0
         self.last_usage: dict = {}
         self.last_latency_ms = 0.0
 
     async def propose_actions(self, state: AgentState, max_actions: int = 1) -> list[CandidateAction]:
         started = time.perf_counter()
-        response = await self.client.chat.completions.create(model=self.model, seed=self.seed, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_schema", "json_schema": {"name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}}, extra_body={"provider": {"require_parameters": True}})
+        response = await self.client.chat.completions.create(model=self.model, seed=self.seed, messages=[{"role": "system", "content": _DIRECT_PROMPT}, {"role": "user", "content": "STATE:\n" + state.canonical_json()}], response_format={"type": "json_schema", "json_schema": {"name": "direct_action", "strict": True, "schema": _DIRECT_SCHEMA}}, max_tokens=self.max_tokens, extra_body={"provider": {"require_parameters": True}})
         self.last_latency_ms = (time.perf_counter() - started) * 1000
         self.last_usage = response.usage.model_dump() if response.usage else {}
         content = response.choices[0].message.content

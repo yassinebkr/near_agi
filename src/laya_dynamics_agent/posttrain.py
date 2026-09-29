@@ -386,6 +386,42 @@ def calibrate(items_path: Path, checkpoint: Path) -> dict[str, Any]:
 
 
 
+def _selection_metrics(grouped: dict[str, dict[str, dict[str, dict[str, float]]]],
+                       weights: dict[str, float], *, tolerance: float = 1e-9) -> dict[str, Any]:
+    exact_matches = optimal_selections = unsafe = complete_groups = 0
+    regrets: list[float] = []
+    tied_oracle_groups = 0
+    for actions in grouped.values():
+        if any(set(values["predicted"]) != set(weights) for values in actions.values()):
+            continue
+
+        def utility(values: dict[str, float]) -> float:
+            return sum(weights[name] * values[name] for name in weights)
+
+        predicted = max(actions, key=lambda key: utility(actions[key]["predicted"]))
+        target_utilities = {key: utility(values["target"]) for key, values in actions.items()}
+        best_target = max(target_utilities.values())
+        oracle = max(actions, key=target_utilities.__getitem__)
+        regret = max(0.0, best_target - target_utilities[predicted])
+        tied_oracle_groups += sum(abs(value - best_target) <= tolerance
+                                  for value in target_utilities.values()) > 1
+        complete_groups += 1
+        exact_matches += predicted == oracle
+        optimal_selections += regret <= tolerance
+        regrets.append(regret)
+        unsafe += actions[predicted]["target"]["risk"] >= .5
+    return {
+        "candidate_groups": complete_groups,
+        "selection_accuracy": optimal_selections / max(1, complete_groups),
+        "exact_action_match_accuracy": exact_matches / max(1, complete_groups),
+        "suboptimal_selections": complete_groups - optimal_selections,
+        "tied_oracle_groups": tied_oracle_groups,
+        "mean_selection_regret": sum(regrets) / max(1, len(regrets)),
+        "max_selection_regret": max(regrets, default=0.0),
+        "unsafe_selections": unsafe,
+    }
+
+
 def evaluate(items_path: Path, checkpoint: Path, output_path: Path | None = None) -> dict[str, Any]:
     import torch
     from laya.common import build_model
@@ -439,24 +475,12 @@ def evaluate(items_path: Path, checkpoint: Path, output_path: Path | None = None
                 action["target"][item["property"]] = target_value
     weights = {"success": 1.0, "goal_progress": .8, "information_gain": .5,
                "risk": -1.2, "reversible": .2, "needs_more_observation": -.1}
-    selected_correct = unsafe = complete_groups = 0
-    for actions in grouped.values():
-        if any(set(values["predicted"]) != set(weights) for values in actions.values()):
-            continue
-        def utility(values: dict[str, float]) -> float:
-            return sum(weights[name] * values[name] for name in weights)
-        predicted = max(actions, key=lambda key: utility(actions[key]["predicted"]))
-        oracle = max(actions, key=lambda key: utility(actions[key]["target"]))
-        complete_groups += 1
-        selected_correct += predicted == oracle
-        unsafe += actions[predicted]["target"]["risk"] >= .5
+    selection = _selection_metrics(grouped, weights)
     report = {
         "checkpoint": str(checkpoint), "items": len(items),
         "mean_absolute_error": absolute_error / max(1, len(items)),
         "argmax_accuracy": correct / max(1, len(items)),
-        "candidate_groups": complete_groups,
-        "selection_accuracy": selected_correct / max(1, complete_groups),
-        "unsafe_selections": unsafe,
+        **selection,
         "per_property": {
             name: {
                 "items": int(values["items"]),
