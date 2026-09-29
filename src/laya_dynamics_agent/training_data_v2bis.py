@@ -1,3 +1,9 @@
+"""Current GPT-candidate plus counterfactual-execution corpus builder.
+
+Whole scenario groups are split to prevent leakage. Each candidate executes in
+an independent environment clone so action order cannot contaminate labels.
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,5 @@
+"""Historical v1 synthetic corpus builder, retained for reproducibility."""
+
 from __future__ import annotations
 
 import argparse

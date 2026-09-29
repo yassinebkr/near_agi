@@ -1,3 +1,5 @@
+"""Command-line entry point, environment loading, and graceful interruption."""
+
 from __future__ import annotations
 
 import argparse

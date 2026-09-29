@@ -1,3 +1,5 @@
+"""Frozen held-out task generator for the final-v001 protocol."""
+
 from __future__ import annotations
 
 from typing import Any

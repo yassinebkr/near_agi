@@ -1,3 +1,5 @@
+"""Explicit action-selection policies used as benchmark controls."""
+
 from __future__ import annotations
 
 import random
@@ -8,6 +10,7 @@ from .models import AgentState, CandidateAction, TransitionPrediction
 
 @dataclass(frozen=True)
 class UtilityWeights:
+    """Auditable coefficients for the greedy transition utility function."""
     success: float = 1.0
     goal_progress: float = 0.8
     information_gain: float = 0.5
@@ -17,6 +20,7 @@ class UtilityWeights:
 
 
 class GreedyUtilityPolicy:
+    """Select the candidate with greatest predicted utility."""
     def __init__(self, weights: UtilityWeights | None = None) -> None: self.weights = weights or UtilityWeights()
     def utility(self, p: TransitionPrediction) -> float:
         w = self.weights
@@ -40,4 +44,3 @@ class OraclePolicy:
     def select(self, state: AgentState, actions: list[CandidateAction], predictions: dict[str, TransitionPrediction]) -> CandidateAction:
         desired = "answer-primary" if not state.unknowns else "primary"
         return next((a for a in actions if a.action_id == desired), actions[0])
-

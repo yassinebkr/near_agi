@@ -1,3 +1,5 @@
+"""Transition predictors and the stable Laya input representation."""
+
 from __future__ import annotations
 
 import json
@@ -12,6 +14,7 @@ PROPERTIES = ("success", "goal_progress", "information_gain", "risk", "reversibl
 
 
 def compact_state(state: AgentState, action: CandidateAction) -> dict[str, Any]:
+    """Build Laya input without arbitrary IDs that invite shortcut learning."""
     action_payload = action.model_dump()
     action_payload.pop("action_id", None)
     history = []
@@ -27,6 +30,7 @@ def compact_state(state: AgentState, action: CandidateAction) -> dict[str, Any]:
 
 
 def resolve_laya_device(requested: str | None = None, torch_module: Any | None = None) -> str:
+    """Resolve device policy and fail closed for an explicit CUDA request."""
     policy = (requested or os.getenv("LAYA_DEVICE", "auto")).strip().lower()
     if policy not in {"auto", "cuda", "cpu"}:
         raise ValueError("LAYA_DEVICE must be one of: auto, cuda, cpu")
@@ -56,6 +60,7 @@ class LayaPredictor:
 
     @staticmethod
     def questions() -> dict[str, dict[str, Any]]:
+        """Return typed questions shared by training and inference."""
         binary = lambda text: {"type": "noul", "instructions": text, "criteria": {"true": "evidence supports yes", "false": "evidence supports no"}, "labels": {"true": "A", "false": "B"}}
         return {
             "success": binary("Will this action probably complete the goal correctly?"),
@@ -67,6 +72,7 @@ class LayaPredictor:
         }
 
     def predict(self, state: AgentState, actions: list[CandidateAction]) -> dict[str, TransitionPrediction]:
+        """Predict every candidate independently and retain raw evidence."""
         output = {}
         for action in actions:
             started = time.perf_counter()

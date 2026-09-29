@@ -1,3 +1,5 @@
+"""Historical v2 semantic corpus builder, retained for audit."""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,5 @@
+"""Deterministic web abstraction and transition ground-truth labeler."""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -88,6 +90,7 @@ def answer_matches(task_id: str, value: str) -> bool:
 
 
 class SandboxWebEnvironment:
+    """Cloneable environment with explicit evidence and side effects."""
     """Deterministic, side-effect-free web abstraction used as ground truth."""
 
     allowlist = {"navigate", "answer", "observe"}

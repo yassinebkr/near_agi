@@ -1,3 +1,8 @@
+"""Episode execution with durable, non-overlapping latency telemetry.
+
+Timing boundaries live here so every benchmark arm remains comparable.
+"""
+
 from __future__ import annotations
 
 import time
@@ -7,6 +12,7 @@ from .models import TransitionPrediction
 
 
 def prediction_error(predicted: TransitionPrediction, observed: Any) -> dict[str, float]:
+    """Return per-property absolute error in the normalized label space."""
     keys = ("success", "goal_progress", "information_gain", "risk", "reversible", "needs_more_observation")
     return {key: abs(getattr(predicted, key) - getattr(observed, key)) for key in keys}
 
@@ -14,6 +20,11 @@ def prediction_error(predicted: TransitionPrediction, observed: Any) -> dict[str
 async def run_episode(*, run_id: str, task_id: str, environment: Any, planner: Any,
                       predictor: Any | None, policy: Any, store: Any, max_steps: int = 6,
                       max_actions: int = 5, stop_requested: Any | None = None) -> dict[str, Any]:
+    """Run one episode and return its outcome plus complete timing telemetry.
+
+    Planner wall time contains cache lookup and candidate generation. Predictor
+    wall time encloses the call; reported time is the sum attached to outputs.
+    """
     episode_started = time.perf_counter()
     environment_started = time.perf_counter()
     state = environment.reset(task_id)
@@ -49,6 +60,8 @@ async def run_episode(*, run_id: str, task_id: str, environment: Any, planner: A
         actions = await planner.propose_actions(state, max_actions)
         planner_step_ms = (time.perf_counter() - started) * 1000
         planner_wall_ms += planner_step_ms
+        # Direct planners expose no provenance; CachedPlanner publishes the
+        # source and original miss latency immediately after every call.
         provenance = dict(getattr(planner, "last_provenance", {}) or {})
         source = provenance.get("candidate_source")
         candidate_path = candidate_path or source in {"fresh", "cache"}
@@ -131,9 +144,11 @@ async def run_episode(*, run_id: str, task_id: str, environment: Any, planner: A
             break
 
     wall_clock_ms = (time.perf_counter() - episode_started) * 1000
+    # Generation and lookup are already inside planner time: do not double-count.
     measured_components = planner_wall_ms + predictor_wall_ms + policy_ms + environment_ms
     framework_overhead_ms = max(0.0, wall_clock_ms - measured_components)
     if candidate_path:
+        # Reconstruct cold cost only when every replay retained measured latency.
         effective_end_to_end_ms = wall_clock_ms + replayed_candidate_generation_ms if candidate_effective_complete else None
         candidate_path_temperature = ("mixed" if candidate_fresh_count and candidate_cache_hit_count else
                                       "cold" if candidate_fresh_count else "warm")

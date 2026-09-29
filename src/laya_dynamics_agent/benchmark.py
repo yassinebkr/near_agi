@@ -1,3 +1,9 @@
+"""Benchmark orchestration, aggregation, paired statistics, and reporting.
+
+Shared candidates make selector quality comparable. Observed warm wall time and
+reconstructed cold-path time remain separate throughout the report.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -23,6 +29,7 @@ PROMPT_VERSION = "planner-v001"
 DIRECT_PROMPT_VERSION = "direct-v001"
 DEFAULT_SEEDS = (0,)
 def _atomic_json(path: Path, value: dict[str, Any]) -> None:
+    """Replace JSON atomically so interrupted campaigns remain readable."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2) + "\n")
@@ -41,6 +48,7 @@ def _planner_pair(provider: str, model: str | None) -> tuple[Any, Any]:
 
 
 def _bootstrap_mean_ci(values: list[float], *, samples: int = 2000, seed: int = 0) -> list[float | None]:
+    """Return a deterministic percentile-bootstrap 95% CI for a mean."""
     if not values:
         return [None, None]
     rng = random.Random(seed)
@@ -66,6 +74,7 @@ def _numbers(rows: list[dict[str, Any]], field: str) -> list[float]:
 
 
 def _ratio_distribution(ratios: list[float]) -> dict[str, int]:
+    """Bucket left/right latency ratios using protocol-stable boundaries."""
     counts = {"<=0.25x": 0, "0.25-0.5x": 0, "0.5-0.8x": 0, "0.8-1.25x": 0,
               "1.25-2x": 0, "2-3x": 0, ">3x": 0}
     for value in ratios:
@@ -80,6 +89,7 @@ def _ratio_distribution(ratios: list[float]) -> dict[str, int]:
 
 
 def _metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate one arm while retaining latency tails and provenance."""
     successes = [float(row["success"]) for row in rows]
     steps = [float(row["steps"]) for row in rows]
     wall = _numbers(rows, "wall_clock_ms")
@@ -114,6 +124,7 @@ def _metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _effective_latency(row: dict[str, Any]) -> float | None:
+    """Return comparable cold latency, or None when it cannot be proven."""
     if row.get("mode") == "direct_gpt":
         value = row.get("wall_clock_ms")
     elif row.get("effective_end_to_end_complete"):
@@ -126,6 +137,7 @@ def _effective_latency(row: dict[str, Any]) -> float | None:
 
 
 def _paired_comparisons(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compare identical task/seed pairs; time-to-success requires two successes."""
     indexed = {(row["task_id"], row["seed"], row["mode"]): row for row in results}
     comparisons: dict[str, Any] = {}
     pairs = (
@@ -186,6 +198,7 @@ def _paired_comparisons(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _aggregate(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build campaign, arm, template, and paired summaries."""
     by_mode: dict[str, list[dict[str, Any]]] = {}
     by_template: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for row in results:
@@ -214,6 +227,7 @@ async def run_benchmark_suite(*, include_laya: bool, provider: str, model: str |
                               finetuned_laya_checkpoint: str | None = None,
                               campaign_id: str | None = None,
                               resume: bool = False) -> dict[str, Any]:
+    """Execute a resumable campaign and persist each completed episode."""
     if resume and not campaign_id:
         raise ValueError("--resume requires --campaign-id")
     campaign_id = campaign_id or f"benchmark-{uuid.uuid4().hex[:8]}"

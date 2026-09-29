@@ -1,3 +1,5 @@
+"""Strict, versioned data contracts shared by the agent pipeline."""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class StrictModel(BaseModel):
+    """Reject unknown fields so schema drift fails loudly."""
     model_config = ConfigDict(extra="forbid")
 
 
@@ -35,6 +38,7 @@ class ActionRecord(StrictModel):
 
 
 class AgentState(StrictModel):
+    """Canonical observable state used for planning, caching, and replay."""
     schema_version: Literal["1.0"] = "1.0"
     task_id: str
     template_id: str
@@ -53,14 +57,17 @@ class AgentState(StrictModel):
     side_effects: list[str] = Field(default_factory=list)
 
     def canonical_json(self) -> str:
+        """Serialize deterministically; this exact representation is hashed."""
         return json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
     @property
     def state_hash(self) -> str:
+        """Content address used for loop detection and cache keys."""
         return hashlib.sha256(self.canonical_json().encode()).hexdigest()
 
 
 class CandidateAction(StrictModel):
+    """Typed action proposed by GPT or a deterministic fixture planner."""
     schema_version: Literal["1.0"] = "1.0"
     action_id: str
     tool: Literal["navigate", "answer", "observe"]
@@ -69,6 +76,7 @@ class CandidateAction(StrictModel):
 
 
 class TransitionPrediction(StrictModel):
+    """Predicted normalized properties for one state/action transition."""
     success: float = Field(ge=0, le=1)
     goal_progress: float = Field(ge=0, le=1)
     information_gain: float = Field(ge=0, le=1)
@@ -82,6 +90,7 @@ class TransitionPrediction(StrictModel):
 
 
 class ObservedProperties(StrictModel):
+    """Ground-truth transition labels emitted by the environment."""
     success: float = Field(ge=0, le=1)
     goal_progress: float = Field(ge=0, le=1)
     information_gain: float = Field(ge=0, le=1)
@@ -92,10 +101,10 @@ class ObservedProperties(StrictModel):
 
 
 class Transition(StrictModel):
+    """Auditable record of applying one action to one state."""
     before: AgentState
     action: CandidateAction
     after: AgentState
     observed: ObservedProperties
     reward: float
     error: str | None = None
-

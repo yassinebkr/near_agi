@@ -1,3 +1,5 @@
+"""Structural interfaces decoupling the episode runner from implementations."""
+
 from __future__ import annotations
 
 from typing import Protocol
@@ -20,4 +22,3 @@ class Policy(Protocol):
 class Environment(Protocol):
     def reset(self, task_id: str) -> AgentState: ...
     def step(self, action: CandidateAction) -> Transition: ...
-

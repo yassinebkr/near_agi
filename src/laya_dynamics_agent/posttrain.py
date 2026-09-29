@@ -1,3 +1,9 @@
+"""Dataset verification, post-training, calibration, and promotion gates.
+
+Training checkpoints retain optimizer and RNG state so SIGTERM can stop at a
+safe boundary and a later process can reproduce the continuation.
+"""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,5 @@
+"""Direct and candidate planners, including auditable candidate replay."""
+
 from __future__ import annotations
 
 import hashlib
@@ -11,6 +13,7 @@ from .models import AgentState, CandidateAction
 
 
 def _openrouter_max_tokens() -> int:
+    """Read the bounded response ceiling used to avoid cost-envelope errors."""
     raw = os.getenv("OPENROUTER_MAX_TOKENS", "4096")
     try:
         value = int(raw)
@@ -89,10 +92,12 @@ class CachedPlanner:
                 target[name] = target.get(name, 0) + value
 
     def _key(self, state: AgentState, max_actions: int) -> str:
+        """Bind replay to state, model, prompt, seed, and candidate count."""
         raw = json.dumps({"state_hash": state.state_hash, "model": self.model, "prompt_version": self.prompt_version, "seed": self.seed, "max_actions": max_actions}, sort_keys=True)
         return hashlib.sha256(raw.encode()).hexdigest()
 
     async def propose_actions(self, state: AgentState, max_actions: int = 5) -> list[CandidateAction]:
+        """Replay exact candidates or generate and atomically persist a miss."""
         lookup_started = time.perf_counter()
         key = self._key(state, max_actions)
         if key in self._entries:
@@ -102,6 +107,7 @@ class CachedPlanner:
             metadata = entry.get("metadata", {})
             actions = [CandidateAction.model_validate(item) for item in entry["actions"]]
             lookup_ms = (time.perf_counter() - lookup_started) * 1000
+            # Missing legacy latency stays unknown; it is never reconstructed.
             original_latency = metadata.get("latency_ms")
             valid_original_latency = isinstance(original_latency, (int, float)) and original_latency >= 0
             self.last_provenance = {

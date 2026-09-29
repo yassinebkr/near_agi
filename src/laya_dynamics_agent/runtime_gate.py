@@ -1,3 +1,5 @@
+"""Fail-closed smoke and challenge gates for fine-tuned checkpoints."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,6 +18,7 @@ REQUIRED_MODES = (
 
 
 def evaluate_runtime_gate(report: dict[str, Any]) -> dict[str, Any]:
+    """Return an auditable verdict without mutating the benchmark report."""
     modes = report.get("aggregate", {}).get("modes", {})
     missing = [mode for mode in REQUIRED_MODES if mode not in modes]
     fine = modes.get("candidates_finetuned_laya", {})
