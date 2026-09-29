@@ -85,9 +85,9 @@ def _anchor_environment(tasks: dict[str, dict[str, Any]], pages: dict[str, Page]
 
 
 def _semantic_action(action: CandidateAction) -> dict[str, Any]:
-    payload = action.model_dump(mode="json")
-    payload.pop("action_id", None)
-    return payload
+    # IDs and rationales are generation artefacts. Only the executable
+    # operation defines whether two candidates are semantically distinct.
+    return {"tool": action.tool, "args": action.args}
 
 
 async def build_dataset(output: Path, planner: Any, *, seed: int = 20260930,

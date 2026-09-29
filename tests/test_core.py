@@ -26,6 +26,7 @@ from laya_dynamics_agent.training_data_v2 import (
     iter_rows as iter_rows_v2,
 )
 from laya_dynamics_agent.training_data_v2bis import (
+    _semantic_action,
     build_dataset as build_dataset_v2bis,
 )
 
@@ -370,6 +371,14 @@ def test_v2bis_keeps_ids_for_audit_but_not_model_input(tmp_path: Path):
     assert all("action_id" not in row["state"]["candidate_action"] for row in rows)
     assert all(row["label_source"] == "executed_counterfactual" for row in rows)
     assert any(row["transition_error"] == "unknown_path" for row in rows)
+
+
+def test_v2bis_semantic_dedup_ignores_ids_and_rationales():
+    first = CandidateAction(action_id="first", tool="observe", args={"path": "/old"},
+                            rationale_short="inspect once")
+    second = CandidateAction(action_id="second", tool="observe", args={"path": "/old"},
+                             rationale_short="inspect again")
+    assert _semantic_action(first) == _semantic_action(second)
 
 
 def test_sandbox_counterfactual_clones_are_isolated():

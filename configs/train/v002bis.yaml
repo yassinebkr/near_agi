@@ -1,5 +1,5 @@
 version: v002bis
-status: pilot_validation
+status: dataset_frozen
 dataset:
   generator: laya_dynamics_agent.training_data_v2bis
   raw_manifest: configs/train/v002bis.dataset-manifest.json

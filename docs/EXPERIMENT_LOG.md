@@ -26,6 +26,14 @@ The resumable v2 checkpoint and original logs remain on the persistent Nebius sy
 
 The replacement v2bis pilot uses GPT-5.6 Sol candidate sets and independently cloned simulator execution for every candidate. Its accepted 20-call pilot produced 100 executed candidates and 600 labeled questions, represented all three tools, and included positive success, progress, information-gain and risk transitions in every split. Recorded provider usage was 20,194 tokens at $0.120364. This validates collection mechanics only; it is not a model-quality result.
 
+## laya-dynamics-v002bis · frozen executed-counterfactual corpus
+
+Date: 2026-09-29. The full collection made 1,600 fresh GPT-5.6 Sol candidate-generation calls across 320 disjoint scenario groups and five anchor states per group. Provider accounting recorded 1,624,442 tokens at $9.775152. Every candidate was executed on an independent cloned simulator state; labels come only from the observed transition. The final frozen corpus contains 7,963 semantically distinct candidate transitions and 47,778 property-question sequences: 4,976 train, 747 validation, 746 calibration and 1,494 development rows.
+
+A post-collection audit found 34 generated duplicates whose executable `tool + args` were identical but whose IDs or rationales differed. Semantic normalization was corrected and the corpus was rebuilt from all 1,600 cached GPT responses with zero additional provider calls. Three of 1,600 anchor states retain three rather than four or five distinct actions; each still contains observation, a redundant navigation and a premature answer. This 0.19% low-diversity tail is recorded rather than synthesized away. All other states contain four or five distinct actions.
+
+Integrity verification passed: split checksums match, scenario groups do not overlap across splits, development templates are disjoint from training templates, no reserved final template is present, and `action_id` is absent from the serialized `state` consumed by Laya. Full audit records retain candidate and history IDs outside that model-facing field. The complete test suite passed 47 tests. The frozen manifest is `configs/train/v002bis.dataset-manifest.json`; this corpus is approved for the v2bis training stage but carries no model-quality claim.
+
 ## laya-dynamics-v001 · Nebius post-training
 
 Date: 2026-09-28. Hardware: one NVIDIA H100 80 GB. Laya revision: `9d955671415fc19f069b9cc998928075c1f255ec`. The three-step smoke was resumed into the frozen four-epoch recipe. Training completed 7,352 optimizer updates and 41,809,925 tokens in 7,722 seconds, with 8.74 GiB peak reserved VRAM. Epoch-average objectives were `0.0110`, `0.0426`, `-0.0107` and `-0.0108`. The signed RLCD objective is not expected to decrease monotonically. Cross-entropy was exactly zero at 77.9% of logged points, indicating that most sampled batches became trivial; this makes independent task evaluation essential.
