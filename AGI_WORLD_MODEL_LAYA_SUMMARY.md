@@ -58,15 +58,15 @@ That would be unnecessarily expensive for many abstract tasks.
 
 A world model useful to a general agent can be much simpler. Its minimal formulation is:
 
-\[
+$$
 (s_t, a_t) \rightarrow \hat{s}_{t+1}
-\]
+$$
 
 where:
 
-- \(s_t\) is the current state;
-- \(a_t\) is the contemplated action;
-- \(\hat{s}_{t+1}\) is the predicted future state.
+- $s_t$ is the current state;
+- $a_t$ is the contemplated action;
+- $\hat{s}_{t+1}$ is the predicted future state.
 
 The state does not need to be an image or a 3D scene. It can be an abstract representation of:
 
@@ -156,15 +156,15 @@ expand only selected branches
 
 That is:
 
-\[
+$$
 s_t \rightarrow \{a_1,a_2,a_3,\ldots\}
-\]
+$$
 
 then:
 
-\[
+$$
 (s_t,a_i)\rightarrow \hat{s}_{t+1}^{(i)}
-\]
+$$
 
 This produces a form of counterfactual planning:
 
@@ -267,21 +267,21 @@ s_{t+1}
 
 It would then compare:
 
-\[
+$$
 \hat{s}_{t+1}
-\]
+$$
 
 with:
 
-\[
+$$
 s_{t+1}
-\]
+$$
 
 The fundamental signal becomes:
 
-\[
+$$
 e_t = s_{t+1} - \hat{s}_{t+1}
-\]
+$$
 
 or, more generally, a structured prediction error. This loop enables the system to correct its model progressively.
 
@@ -317,15 +317,15 @@ This distinction is fundamental.
 
 Laya performs something closer to:
 
-\[
+$$
 f(s,q)\rightarrow P(y)
-\]
+$$
 
 whereas a true transition model would seek:
 
-\[
+$$
 f(s,a)\rightarrow \hat{s}_{t+1}
-\]
+$$
 
 We should therefore not claim that Laya is already a world model.
 
@@ -344,9 +344,9 @@ Is the current hypothesis likely to survive this action?
 
 We can then approximate:
 
-\[
+$$
 P(\Delta s \mid s,a)
-\]
+$$
 
 through a collection of typed decisions.
 
@@ -363,7 +363,7 @@ through a collection of typed decisions.
                          |  State Builder   |
                          +---------+--------+
                                    |
-                                  s_t
+                                    s_t
                                    |
                +-------------------+-------------------+
                |                                       |
@@ -378,7 +378,7 @@ through a collection of typed decisions.
                |
                v
         +------------------------------------------+
-        |            post-trained Laya            |
+        |            post-trained Laya             |
         |                                          |
         | P(goal_progress)                         |
         | P(success)                               |
@@ -416,21 +416,21 @@ through a collection of typed decisions.
 
 In a second phase, a latent transition representation could be added:
 
-\[
+$$
 f(s_t,a_t)\rightarrow\Delta z
-\]
+$$
 
 then:
 
-\[
+$$
 \hat z_{t+1} = z_t + \Delta z
-\]
+$$
 
 This could theoretically enable several steps to be rolled out without acting in the real environment:
 
-\[
+$$
 z_t \xrightarrow{a_1} \hat z_{t+1} \xrightarrow{a_2} \hat z_{t+2}
-\]
+$$
 
 This part is substantially more experimental. The first POC must not depend on it.
 
@@ -626,9 +626,9 @@ The POC must produce quantitative measurements.
 
 ### Success
 
-\[
-TaskSuccessRate
-\]
+$$
+\text{TaskSuccessRate}
+$$
 
 ### Efficiency
 
