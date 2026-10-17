@@ -254,7 +254,7 @@ observation
 state encoder
     |
     v
-s_t
+   s_t
     |
     +----> candidate action generation
     |
