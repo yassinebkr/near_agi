@@ -674,8 +674,6 @@ $$
 \text{TaskSuccessRate} = \frac{\text{successful tasks}}{\text{total tasks}}
 $$
 
-**Legend:** fraction of tasks completed successfully
-
 ### Efficiency
 
 ```text
