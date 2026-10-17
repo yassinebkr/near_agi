@@ -62,7 +62,7 @@ $$
 (s_t, a_t) \rightarrow \hat{s}_{t+1}
 $$
 
-**Legend:**
+**Where:**
 - $s_t$ — current state
 - $a_t$ — contemplated action
 - $\hat{s}_{t+1}$ — predicted future state
@@ -159,7 +159,7 @@ $$
 s_t \rightarrow \{a_1,a_2,a_3,\ldots\}
 $$
 
-**Legend:**
+**Where:**
 - $s_t$ — current state
 - $\{a_1, a_2, a_3, \ldots\}$ — set of candidate actions
 
@@ -169,7 +169,7 @@ $$
 (s_t,a_i)\rightarrow \hat{s}_{t+1}^{(i)}
 $$
 
-**Legend:**
+**Where:**
 - $a_i$ — $i$-th candidate action
 - $\hat{s}_{t+1}^{(i)}$ — predicted next state if action $a_i$ is taken
 
@@ -278,7 +278,7 @@ $$
 \hat{s}_{t+1}
 $$
 
-**Legend:** $\hat{s}_{t+1}$ — predicted next state
+**Where:** $\hat{s}_{t+1}$ — predicted next state
 
 with:
 
@@ -286,7 +286,7 @@ $$
 s_{t+1}
 $$
 
-**Legend:** $s_{t+1}$ — actual observed next state
+**Where:** $s_{t+1}$ — actual observed next state
 
 The fundamental signal becomes:
 
@@ -294,7 +294,7 @@ $$
 e_t = s_{t+1} - \hat{s}_{t+1}
 $$
 
-**Legend:**
+**Where:**
 - $e_t$ — prediction error at time $t$
 - $s_{t+1}$ — actual next state
 - $\hat{s}_{t+1}$ — predicted next state
@@ -339,7 +339,7 @@ $$
 f(s,q)\rightarrow P(y)
 $$
 
-**Legend:**
+**Where:**
 - $s$ — input state
 - $q$ — query (e.g., "will this action succeed?")
 - $P(y)$ — probability distribution over decision $y$
@@ -350,7 +350,7 @@ $$
 f(s,a)\rightarrow \hat{s}_{t+1}
 $$
 
-**Legend:**
+**Where:**
 - $s$ — current state
 - $a$ — action
 - $\hat{s}_{t+1}$ — predicted next state
@@ -376,7 +376,7 @@ $$
 P(\Delta s \mid s,a)
 $$
 
-**Legend:**
+**Where:**
 - $\Delta s$ — change in state
 - $\mid$ — "given" (conditional probability)
 - $s$ — current state
@@ -454,7 +454,7 @@ $$
 f(s_t,a_t)\rightarrow\Delta z
 $$
 
-**Legend:**
+**Where:**
 - $z$ — latent (compressed) state representation
 - $\Delta z$ — predicted change in latent state
 
@@ -464,7 +464,7 @@ $$
 \hat z_{t+1} = z_t + \Delta z
 $$
 
-**Legend:**
+**Where:**
 - $z_t$ — current latent state
 - $\hat{z}_{t+1}$ — predicted next latent state
 
@@ -474,7 +474,7 @@ $$
 z_t \xrightarrow{a_1} \hat z_{t+1} \xrightarrow{a_2} \hat z_{t+2}
 $$
 
-**Legend:** 
+**Where:** 
 - $\xrightarrow{a_i}$ — transition via action $a_i$ in latent space
 
 This part is substantially more experimental. The first POC must not depend on it.
