@@ -474,7 +474,8 @@ $$
 z_t \xrightarrow{a_1} \hat z_{t+1} \xrightarrow{a_2} \hat z_{t+2}
 $$
 
-**Legend:** $\xrightarrow{a_i}$ — transition via action $a_i$ in latent space
+**Legend:** 
+- $\xrightarrow{a_i}$ — transition via action $a_i$ in latent space
 
 This part is substantially more experimental. The first POC must not depend on it.
 
