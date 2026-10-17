@@ -160,11 +160,15 @@ $$
 s_t \rightarrow \{a_1,a_2,a_3,\ldots\}
 $$
 
+where $s_t$ is the current state and $\{a_1, a_2, a_3, \ldots\}$ is the set of candidate actions generated from that state.
+
 then:
 
 $$
 (s_t,a_i)\rightarrow \hat{s}_{t+1}^{(i)}
 $$
+
+where $a_i$ is the $i$-th candidate action and $\hat{s}_{t+1}^{(i)}$ is the predicted next state if action $a_i$ is taken.
 
 This produces a form of counterfactual planning:
 
@@ -271,17 +275,23 @@ $$
 \hat{s}_{t+1}
 $$
 
+(the model's prediction of the next state)
+
 with:
 
 $$
 s_{t+1}
 $$
 
+(the actual observed next state)
+
 The fundamental signal becomes:
 
 $$
 e_t = s_{t+1} - \hat{s}_{t+1}
 $$
+
+where $e_t$ is the prediction error at time $t$ — the difference between what actually happened and what the model predicted.
 
 or, more generally, a structured prediction error. This loop enables the system to correct its model progressively.
 
@@ -321,11 +331,15 @@ $$
 f(s,q)\rightarrow P(y)
 $$
 
+where $s$ is the input state, $q$ is the query (e.g., "will this action succeed?"), and $P(y)$ is the probability distribution over the decision $y$.
+
 whereas a true transition model would seek:
 
 $$
 f(s,a)\rightarrow \hat{s}_{t+1}
 $$
+
+where $s$ is the current state, $a$ is the action, and $\hat{s}_{t+1}$ is the predicted next state.
 
 We should therefore not claim that Laya is already a world model.
 
@@ -347,6 +361,8 @@ We can then approximate:
 $$
 P(\Delta s \mid s,a)
 $$
+
+where $\Delta s$ is the change in state, and the notation $\mid$ means "given" — i.e., the probability of a state change given the current state $s$ and action $a$.
 
 through a collection of typed decisions.
 
@@ -420,17 +436,23 @@ $$
 f(s_t,a_t)\rightarrow\Delta z
 $$
 
+where $z$ is a latent (compressed) state representation and $\Delta z$ is the predicted change in that latent state.
+
 then:
 
 $$
 \hat z_{t+1} = z_t + \Delta z
 $$
 
+where $z_t$ is the current latent state and $\hat{z}_{t+1}$ is the predicted next latent state.
+
 This could theoretically enable several steps to be rolled out without acting in the real environment:
 
 $$
 z_t \xrightarrow{a_1} \hat z_{t+1} \xrightarrow{a_2} \hat z_{t+2}
 $$
+
+where $\xrightarrow{a_i}$ denotes a transition via action $a_i$ in latent space.
 
 This part is substantially more experimental. The first POC must not depend on it.
 
@@ -627,8 +649,10 @@ The POC must produce quantitative measurements.
 ### Success
 
 $$
-\text{TaskSuccessRate}
+\text{TaskSuccessRate} = \frac{\text{successful tasks}}{\text{total tasks}}
 $$
+
+The fraction of tasks completed successfully.
 
 ### Efficiency
 
